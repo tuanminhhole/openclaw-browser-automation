@@ -1,8 +1,8 @@
 {
-  "id": "browser-automation",
+  "id": "openclaw-browser-automation",
   "name": "Smart Search & Browser Automation",
   "description": "Zero-token, Cloudflare-bypassing Stealth Search and dynamic Browser CDP controller plugin. Supports both headless Chromium and real Chrome debug mode.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true,
