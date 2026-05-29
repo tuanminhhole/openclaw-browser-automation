@@ -16,7 +16,7 @@ if (_homeBasename === 'npm' || _homeBasename === 'node_modules') {
   }
 }
 
-const PLUGIN_ID = 'openclaw-smart-search';
+const PLUGIN_ID = 'browser-automation';
 
 // ── Managed block helper (idempotent insert/update) ──────────────────────────
 function upsertManagedBlock(content, blockId, blockContent) {

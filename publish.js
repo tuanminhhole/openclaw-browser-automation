@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   const srcDir = __dirname;
-  const buildDir = path.join(srcDir, '..', 'openclaw-smart-search-build');
+  const buildDir = path.join(srcDir, '..', 'openclaw-browser-automation-build');
   const pkgPath = path.join(srcDir, 'package.json');
 
   console.log('🚀 Starting ClawHub Release Workflow...');
@@ -15,7 +15,7 @@ async function main() {
   // 1. Read package.json to get version
   const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
   const version = pkg.version;
-  console.log(`📦 Releasing openclaw-smart-search@${version}...`);
+  console.log(`📦 Releasing openclaw-browser-automation@${version}...`);
 
   try {
     // 2. Package for ClawHub

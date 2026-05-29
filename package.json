@@ -1,5 +1,5 @@
 {
-  "name": "openclaw-smart-search",
+  "name": "openclaw-browser-automation",
   "version": "1.1.0",
   "description": "Smart Search & Browser Automation plugin for OpenClaw. Zero API Key required, anti-Cloudflare, and free.",
   "type": "module",
@@ -21,7 +21,8 @@
     "openclaw",
     "search",
     "browser",
-    "stealth",
+    "automation",
+    "browser-automation",
     "smart-search",
     "cloudflare-bypass",
     "playwright",
