@@ -22,6 +22,19 @@ try {
 const { chromium } = playwright;
 
 let query = process.argv[2];
+let limit = 5;
+
+if (process.argv.length > 3) {
+    const lastArg = process.argv[process.argv.length - 1];
+    const parsedLimit = parseInt(lastArg);
+    if (!isNaN(parsedLimit) && String(parsedLimit) === lastArg && parsedLimit > 0) {
+        limit = parsedLimit;
+        query = process.argv.slice(2, -1).join(' ');
+    } else {
+        query = process.argv.slice(2).join(' ');
+    }
+}
+
 // Auto-heal query encoding if wrongly decoded as Latin1 instead of UTF-8
 if (query) {
     try {
@@ -40,7 +53,6 @@ if (query && /giá|mua|bán|thuê|tuyển/i.test(query) && /xe|máy|honda|yamaha
     optimizedQuery = query.replace(/\b(hôm\s+nay|mới\s+nhất|hiện\s+nay|nay)\b/gi, '').trim().replace(/\s+/g, ' ');
 }
 
-const limit = parseInt(process.argv[3]) || 5;
 const CDP_URL = 'http://127.0.0.1:9222';
 
 if (!query) {
