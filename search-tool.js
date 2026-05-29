@@ -21,7 +21,25 @@ try {
 }
 const { chromium } = playwright;
 
-const query = process.argv[2];
+let query = process.argv[2];
+// Auto-heal query encoding if wrongly decoded as Latin1 instead of UTF-8
+if (query) {
+    try {
+        if (/[\u0080-\u00FF]/.test(query)) {
+            const healed = Buffer.from(query, 'latin1').toString('utf8');
+            if (healed !== query && !healed.includes('\uFFFD')) {
+                query = healed;
+            }
+        }
+    } catch (e) {}
+}
+
+let optimizedQuery = query;
+// Optimize query for consumer goods pricing to prevent Bing's autocorrect-to-gold-rates bug
+if (query && /giá|mua|bán|thuê|tuyển/i.test(query) && /xe|máy|honda|yamaha|sh|mode|vision|wave|ab|airblade|exciter|vespa|điện\s*thoại|iphone|samsung|oppo|xiaomi|laptop|dell|hp|asus|macbook|nhà|đất|chung\s*cư|phòng/i.test(query)) {
+    optimizedQuery = query.replace(/\b(hôm\s+nay|mới\s+nhất|hiện\s+nay|nay)\b/gi, '').trim().replace(/\s+/g, ' ');
+}
+
 const limit = parseInt(process.argv[3]) || 5;
 const CDP_URL = 'http://127.0.0.1:9222';
 
@@ -52,7 +70,10 @@ if (!query) {
             });
             isStandalone = true;
             ctx = await browser.newContext({
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                locale: 'vi-VN',
+                geolocation: { longitude: 105.8342, latitude: 21.0278 },
+                permissions: ['geolocation']
             });
         }
 
@@ -62,7 +83,7 @@ if (!query) {
             (async () => {
                 const page = await ctx.newPage();
                 try {
-                    await page.goto('https://www.google.com/search?q=' + encodeURIComponent(query) + '&hl=vi', { waitUntil: 'domcontentloaded', timeout: 5000 });
+                    await page.goto('https://www.google.com/search?q=' + encodeURIComponent(optimizedQuery) + '&hl=vi&gl=vn', { waitUntil: 'domcontentloaded', timeout: 5000 });
                     const res = await page.evaluate(() => {
                         const list = [];
                         const links = Array.from(document.querySelectorAll('a h3'));
@@ -105,7 +126,7 @@ if (!query) {
             (async () => {
                 const page = await ctx.newPage();
                 try {
-                    await page.goto('https://www.bing.com/search?q=' + encodeURIComponent(query), { waitUntil: 'domcontentloaded', timeout: 5000 });
+                    await page.goto('https://www.bing.com/search?q=' + encodeURIComponent(optimizedQuery) + '&setlang=vi&cc=VN', { waitUntil: 'domcontentloaded', timeout: 5000 });
                     const res = await page.evaluate(() => {
                         const list = [];
                         const items = document.querySelectorAll('li.b_algo');
@@ -137,7 +158,7 @@ if (!query) {
             (async () => {
                 const page = await ctx.newPage();
                 try {
-                    await page.goto('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query), { waitUntil: 'domcontentloaded', timeout: 5000 });
+                    await page.goto('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(optimizedQuery) + '&kl=vn-vi', { waitUntil: 'domcontentloaded', timeout: 5000 });
                     const res = await page.evaluate(() => {
                         const list = [];
                         const elements = document.querySelectorAll('.result');
