@@ -57,6 +57,14 @@ if (!query) {
         try {
             browser = await chromium.connectOverCDP(CDP_URL, { timeout: 3000 });
             ctx = browser.contexts()[0];
+            if (!ctx) {
+                ctx = await browser.newContext({
+                    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    locale: 'vi-VN',
+                    geolocation: { longitude: 105.8342, latitude: 21.0278 },
+                    permissions: ['geolocation']
+                });
+            }
         } catch (e) {
             // Fallback to standalone headless Chromium launch
             browser = await chromium.launch({
@@ -81,8 +89,9 @@ if (!query) {
         const [googleResults, bingResults, ddgResults] = await Promise.all([
             // Google
             (async () => {
-                const page = await ctx.newPage();
+                let page;
                 try {
+                    page = await ctx.newPage();
                     await page.goto('https://www.google.com/search?q=' + encodeURIComponent(optimizedQuery) + '&hl=vi&gl=vn', { waitUntil: 'domcontentloaded', timeout: 5000 });
                     const res = await page.evaluate(() => {
                         const list = [];
@@ -117,15 +126,18 @@ if (!query) {
                     await page.close();
                     return res;
                 } catch (e) {
-                    if (page) await page.close();
+                    if (page) {
+                        try { await page.close(); } catch(err) {}
+                    }
                     return [];
                 }
             })(),
 
             // Bing
             (async () => {
-                const page = await ctx.newPage();
+                let page;
                 try {
+                    page = await ctx.newPage();
                     await page.goto('https://www.bing.com/search?q=' + encodeURIComponent(optimizedQuery) + '&setlang=vi&cc=VN', { waitUntil: 'domcontentloaded', timeout: 5000 });
                     const res = await page.evaluate(() => {
                         const list = [];
@@ -149,15 +161,18 @@ if (!query) {
                     await page.close();
                     return res;
                 } catch (e) {
-                    if (page) await page.close();
+                    if (page) {
+                        try { await page.close(); } catch(err) {}
+                    }
                     return [];
                 }
             })(),
 
             // DuckDuckGo
             (async () => {
-                const page = await ctx.newPage();
+                let page;
                 try {
+                    page = await ctx.newPage();
                     await page.goto('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(optimizedQuery) + '&kl=vn-vi', { waitUntil: 'domcontentloaded', timeout: 5000 });
                     const res = await page.evaluate(() => {
                         const list = [];
@@ -178,7 +193,9 @@ if (!query) {
                     await page.close();
                     return res;
                 } catch (e) {
-                    if (page) await page.close();
+                    if (page) {
+                        try { await page.close(); } catch(err) {}
+                    }
                     return [];
                 }
             })()
