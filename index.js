@@ -224,7 +224,10 @@ const plugin = definePluginEntry({
     const cfg = api.config;
 
     // Resolve project directory and workspace directories for all agents
-    const projectDir = path.resolve(_openclawHome, '..');
+    let projectDir = path.resolve(_openclawHome, '..');
+    if (!existsSync(path.join(projectDir, 'docker')) && existsSync('/mnt/project/docker')) {
+      projectDir = '/mnt/project';
+    }
 
     // ── Inject browser config into openclaw.json ──────────────────────────
     injectBrowserConfig(projectDir, logger);
