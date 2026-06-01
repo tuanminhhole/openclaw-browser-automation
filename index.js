@@ -59,7 +59,7 @@ function patchDockerFiles(projectDir, logger) {
     try {
       let dockerfile = readFileSync(dockerfilePath, 'utf8');
       const browserBlock = [
-        '# Browser Automation: Playwright + Chromium (openclaw-smart-search plugin)',
+        '# Browser Automation: Playwright + Chromium (browser-automation plugin)',
         '# This layer is cached — Chromium is only downloaded on the first build.',
         'RUN apt-get update && apt-get install -y --no-install-recommends xvfb socat \\',
         '    && rm -rf /var/lib/apt/lists/*',
@@ -76,16 +76,16 @@ function patchDockerFiles(projectDir, logger) {
           const after = dockerfile.substring(copyIdx);
           dockerfile = before + `# OPENCLAW:SMART_SEARCH_BROWSER:START\n${browserBlock}\n# OPENCLAW:SMART_SEARCH_BROWSER:END\n\n` + after;
           writeFileSync(dockerfilePath, dockerfile, 'utf8');
-          logger.info('[openclaw-smart-search] Patched Dockerfile with browser deps (Playwright + Chromium cached layer).');
+          logger.info('[browser-automation] Patched Dockerfile with browser deps (Playwright + Chromium cached layer).');
         }
       } else {
         // Update existing block
         dockerfile = upsertShellManagedBlock(dockerfile, 'SMART_SEARCH_BROWSER', browserBlock);
         writeFileSync(dockerfilePath, dockerfile, 'utf8');
-        logger.info('[openclaw-smart-search] Updated existing browser block in Dockerfile.');
+        logger.info('[browser-automation] Updated existing browser block in Dockerfile.');
       }
     } catch (err) {
-      logger.error(`[openclaw-smart-search] Failed to patch Dockerfile: ${err.message}`);
+      logger.error(`[browser-automation] Failed to patch Dockerfile: ${err.message}`);
     }
   }
 
@@ -107,10 +107,10 @@ function patchDockerFiles(projectDir, logger) {
         '" 2>/dev/null || echo "CLOSED")',
         '',
         'if [ "$HOST_OPEN" = "OPEN" ]; then',
-        '  echo "[openclaw-smart-search] Host Chrome debug port 9222 detected. Forwarding via socat..."',
+        '  echo "[browser-automation] Host Chrome debug port 9222 detected. Forwarding via socat..."',
         '  socat TCP-LISTEN:9222,fork,reuseaddr TCP:host.docker.internal:9222 &',
         'else',
-        '  echo "[openclaw-smart-search] No host Chrome detected. Starting local headless Chromium via Xvfb..."',
+        '  echo "[browser-automation] No host Chrome detected. Starting local headless Chromium via Xvfb..."',
         '  Xvfb :99 -screen 0 1280x720x24 > /dev/null 2>&1 &',
         '  export DISPLAY=:99',
         '  # Launch Chromium with remote debugging port for CDP connections',
@@ -120,9 +120,9 @@ function patchDockerFiles(projectDir, logger) {
         '    --user-data-dir=/tmp/chromium-data > /var/log/chromium-debug.log 2>&1 &',
         '  sleep 3',
         '  if curl -s http://127.0.0.1:9222/json/version > /dev/null 2>&1; then',
-        '    echo "[openclaw-smart-search] Local headless Chromium started on port 9222."',
+        '    echo "[browser-automation] Local headless Chromium started on port 9222."',
         '  else',
-        '    echo "[openclaw-smart-search] WARNING: Chromium failed to start. Browser features may not work."',
+        '    echo "[browser-automation] WARNING: Chromium failed to start. Browser features may not work."',
         '  fi',
         'fi',
       ].join('\n');
@@ -135,15 +135,15 @@ function patchDockerFiles(projectDir, logger) {
           const after = entrypoint.substring(gwIdx);
           entrypoint = before + `# OPENCLAW:SMART_SEARCH_BROWSER_RUNTIME:START\n${browserEntrypoint}\n# OPENCLAW:SMART_SEARCH_BROWSER_RUNTIME:END\n\n` + after;
           writeFileSync(entrypointPath, entrypoint, 'utf8');
-          logger.info('[openclaw-smart-search] Patched entrypoint.sh with browser runtime (socat/Xvfb/Chromium).');
+          logger.info('[browser-automation] Patched entrypoint.sh with browser runtime (socat/Xvfb/Chromium).');
         }
       } else {
         entrypoint = upsertShellManagedBlock(entrypoint, 'SMART_SEARCH_BROWSER_RUNTIME', browserEntrypoint);
         writeFileSync(entrypointPath, entrypoint, 'utf8');
-        logger.info('[openclaw-smart-search] Updated existing browser runtime block in entrypoint.sh.');
+        logger.info('[browser-automation] Updated existing browser runtime block in entrypoint.sh.');
       }
     } catch (err) {
-      logger.error(`[openclaw-smart-search] Failed to patch entrypoint.sh: ${err.message}`);
+      logger.error(`[browser-automation] Failed to patch entrypoint.sh: ${err.message}`);
     }
   }
 
@@ -162,11 +162,11 @@ function patchDockerFiles(projectDir, logger) {
           const extraHosts = '    extra_hosts:\n      - "host.docker.internal:host-gateway"\n';
           compose = before + extraHosts + after;
           writeFileSync(composePath, compose, 'utf8');
-          logger.info('[openclaw-smart-search] Added extra_hosts to docker-compose.yml for Chrome CDP access.');
+          logger.info('[browser-automation] Added extra_hosts to docker-compose.yml for Chrome CDP access.');
         }
       }
     } catch (err) {
-      logger.error(`[openclaw-smart-search] Failed to patch docker-compose.yml: ${err.message}`);
+      logger.error(`[browser-automation] Failed to patch docker-compose.yml: ${err.message}`);
     }
   }
 }
@@ -193,10 +193,10 @@ function injectBrowserConfig(projectDir, logger) {
         },
       };
       writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-      logger.info('[openclaw-smart-search] Injected browser config into openclaw.json.');
+      logger.info('[browser-automation] Injected browser config into openclaw.json.');
     }
   } catch (err) {
-    logger.error(`[openclaw-smart-search] Failed to inject browser config: ${err.message}`);
+    logger.error(`[browser-automation] Failed to inject browser config: ${err.message}`);
   }
 }
 
@@ -207,7 +207,7 @@ const plugin = definePluginEntry({
 
   register(api) {
     const logger = api.logger;
-    logger.info('[openclaw-smart-search] Registering plugin...');
+    logger.info('[browser-automation] Registering plugin...');
 
     // ── Proactively fix permissions to prevent openclaw gateway broad permissions error ──
     try {
@@ -236,7 +236,7 @@ const plugin = definePluginEntry({
       try {
         if (!cfg.agents?.list || cfg.agents.list.length === 0) return;
 
-        logger.info('[openclaw-smart-search] Syncing stealth search & browser assets into workspaces...');
+        logger.info('[browser-automation] Syncing stealth search & browser assets into workspaces...');
 
         // Reading source assets from plugin directory
         const searchToolContent = await fs.readFile(path.join(__dirname, 'search-tool.js'), 'utf8');
@@ -265,7 +265,7 @@ const plugin = definePluginEntry({
           } catch(e) {}
 
           // 3. Write SKILL.md under skills catalog (both cl-stealth-search and openclaw-smart-search dirs for maximum compatibility)
-          const compatDirs = ['cl-stealth-search', 'openclaw-smart-search'];
+          const compatDirs = ['cl-stealth-search', 'openclaw-smart-search', 'browser-automation'];
           for (const cDir of compatDirs) {
             const skillDir = path.join(workspacePath, 'plugin-skills', cDir);
             if (!existsSync(skillDir)) {
@@ -284,8 +284,10 @@ const plugin = definePluginEntry({
           }
 
           const guideText = `## 🌐 Smart Search & Browser Automation
+- **⛔ CẤM DÙNG NATIVE TOOL:** TUYỆT ĐỐI KHÔNG BAO GIỜ gọi native tool \`browser\` (tool có schema \`{"url","action"}\`) hoặc \`web_fetch\`. Hai tool native này đã bị vô hiệu hóa trên hệ thống và sẽ LUÔN trả lỗi. Mọi thao tác tìm kiếm/trình duyệt PHẢI thông qua \`exec\` để chạy \`node search-tool.js\` hoặc \`node browser-tool.js\`.
 - **Tìm kiếm Internet:** Mỗi khi cần tìm kiếm Internet/Web, tra cứu giá vàng, thời tiết, tỷ giá ngoại tệ hay tin tức mới, bạn BẮT BUỘC phải gọi công cụ \`exec\` để chạy lệnh terminal: \`node search-tool.js "<từ khóa>" 5\`! Lệnh này cực kỳ nhanh, tàng hình và miễn phí.
-- **Vượt Cloudflare:** TUYỆT ĐỐI KHÔNG dùng tool \`browser-tool.js\` để truy cập trực tiếp các trang nguồn như \`sjc.com.vn\` vì chúng luôn chặn Cloudflare hoàn toàn. Hãy dùng \`search-tool.js\` để lấy các bài báo tổng hợp tin tức từ các trang tin tức trung gian không bao giờ bị chặn (VnExpress, 24h, VietnamNet).
+- **Lấy nội dung trang web:** Khi cần đọc nội dung chi tiết từ một trang web (ví dụ bảng giá vàng, bài viết), BẮT BUỘC dùng 2 bước qua \`exec\`: (1) \`node browser-tool.js open <url>\` → (2) \`node browser-tool.js get_text\`. KHÔNG dùng \`web_fetch\` vì nó không render JavaScript và sẽ trả về "Đang tải..." đối với các trang dynamic.
+- **Vượt Cloudflare:** TUYỆT ĐỐI KHÔNG dùng \`browser-tool.js\` để truy cập trực tiếp các trang nguồn như \`sjc.com.vn\` vì chúng luôn chặn Cloudflare hoàn toàn. Hãy dùng \`search-tool.js\` để lấy các bài báo tổng hợp tin tức từ các trang tin tức trung gian không bao giờ bị chặn (VnExpress, 24h, VietnamNet).
 - **Trình duyệt tự động:** Xem chi tiết hướng dẫn các lệnh mở trang, cuộn trang, click, chụp ảnh màn hình tại tệp hướng dẫn **BROWSER.md** hoặc file skill **SKILL.md** của bạn. Điều khiển trình duyệt qua lệnh terminal: \`node browser-tool.js <action> [params]\`.
 - **Chế độ xem trực quan (Chrome thật):** Chạy file \`start-chrome-debug.bat\` (Windows) hoặc \`start-chrome-debug.sh\` (Mac/Linux) trên máy tính trước → bot sẽ tự động kết nối điều khiển Chrome thật trên màn hình. Nếu không chạy file này, bot sẽ dùng Chromium ẩn (headless).
 - **Chế độ ẩn (headless):** Mặc định bot dùng Chromium ẩn, hoạt động hoàn toàn tự động không cần mở cửa sổ trình duyệt — phù hợp cho server/VPS.`;
@@ -297,33 +299,35 @@ const plugin = definePluginEntry({
           const browserMdPath = path.join(workspacePath, 'BROWSER.md');
           if (!existsSync(browserMdPath)) {
             const browserMdContent = `# 🌍 Hướng dẫn Browser (Chrome CDP)
-- **Script điều khiển:** \`browser-tool.js\`
+- **⛔ QUAN TRỌNG:** KHÔNG dùng native tool \`browser\` hoặc \`web_fetch\`. Chỉ dùng \`exec\` → \`node browser-tool.js\`.
+- **Script điều khiển:** \`browser-tool.js\` (chạy qua \`exec\`)
 - **Kết nối Chrome debug:** \`http://127.0.0.1:9222\`
 - **Chế độ hoạt động:**
   - **Headless (mặc định):** Chromium chạy ẩn, hoàn toàn tự động. Phù hợp server/VPS.
   - **Chrome thật (trực quan):** Chạy \`start-chrome-debug.bat\` / \`start-chrome-debug.sh\` trên máy host → bot điều khiển Chrome thật trên màn hình.
 - **Hành động phổ biến:**
   - \`node browser-tool.js open <url>\` : Mở trang web.
-  - \`node browser-tool.js get_text\` : Trích xuất văn bản sạch.
+  - \`node browser-tool.js get_text [max_chars]\` : Trích xuất văn bản sạch (sau khi JS render xong).
   - \`node browser-tool.js screenshot [path]\` : Chụp ảnh màn hình.
   - \`node browser-tool.js click "<css_selector>"\` : Click chuột.
   - \`node browser-tool.js fill "<css_selector>" "<text>"\` : Nhập liệu.
   - \`node browser-tool.js scroll [px]\` : Cuộn trang.
   - \`node browser-tool.js tabs\` : Liệt kê tab đang mở.
+- **Lấy dữ liệu từ trang dynamic (giá vàng, tỷ giá...):** Chạy 2 bước: (1) \`node browser-tool.js open <url>\` → (2) \`node browser-tool.js get_text\`.
 `;
             await fs.writeFile(browserMdPath, browserMdContent, 'utf8');
           }
 
-          logger.info(`[openclaw-smart-search] Synchronized workspace assets for agent: ${a.id}`);
+          logger.info(`[browser-automation] Synchronized workspace assets for agent: ${a.id}`);
         }
       } catch (err) {
-        logger.error(`[openclaw-smart-search] Failed to synchronize workspace assets: ${err.message}`);
+        logger.error(`[browser-automation] Failed to synchronize workspace assets: ${err.message}`);
       }
     }
 
     // Run sync asynchronously on startup
     syncWorkspaceAssets().catch((err) => {
-      logger.error(`[openclaw-smart-search] Startup sync failed: ${err.message}`);
+      logger.error(`[browser-automation] Startup sync failed: ${err.message}`);
     });
   }
 });

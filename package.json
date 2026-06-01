@@ -1,6 +1,6 @@
 {
   "name": "openclaw-browser-automation",
-  "version": "1.1.5",
+  "version": "1.2.0",
   "description": "Smart Search & Browser Automation plugin for OpenClaw. Zero API Key required, anti-Cloudflare, and free.",
   "type": "module",
   "main": "index.js",

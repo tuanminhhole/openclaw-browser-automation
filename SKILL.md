@@ -1,9 +1,21 @@
 ---
-name: openclaw-smart-search
+name: browser-automation
 description: Tìm kiếm internet không cần API Key, chống chặn và hoàn toàn miễn phí.
 ---
 
 Cung cấp công cụ tìm kiếm thông tin thời gian thực miễn phí bằng cách kết nối qua trình duyệt Chromium ngầm đã giả lập tàng hình (Stealth Mode) và điều khiển trình duyệt thật qua giao thức Chrome DevTools Protocol (CDP).
+
+---
+
+## ⛔ 0. QUY TẮC TUYỆT ĐỐI — CẤM DÙNG NATIVE TOOL
+
+**TUYỆT ĐỐI KHÔNG BAO GIỜ** gọi các native tool sau:
+- ❌ `browser` (tool có schema `{"url","action"}`) — đã bị vô hiệu hóa, sẽ LUÔN trả lỗi "browser control disabled".
+- ❌ `web_fetch` — không render JavaScript, sẽ trả về "Đang tải..." đối với mọi trang dynamic.
+
+✅ **Thay thế đúng:** Mọi thao tác tìm kiếm/trình duyệt PHẢI thông qua tool `exec` (hoặc run_command) để chạy:
+- `node search-tool.js "<từ khóa>" 5` — tìm kiếm Internet
+- `node browser-tool.js <action> [params]` — điều khiển trình duyệt
 
 ---
 

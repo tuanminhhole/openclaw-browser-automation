@@ -21,13 +21,13 @@ Plugin tích hợp Tìm kiếm mạng thông minh (chống chặn Cloudflare, kh
 Cài đặt trực tiếp qua ClawHub:
 
 ```bash
-openclaw plugins install clawhub:openclaw-smart-search
+openclaw plugins install clawhub:openclaw-browser-automation
 ```
 
 Hoặc tải mã nguồn về thư mục `.openclaw/extensions/`:
 
 ```bash
-git clone https://github.com/tuanminhhole/openclaw-smart-search.git .openclaw/extensions/openclaw-smart-search
+git clone https://github.com/tuanminhhole/openclaw-browser-automation.git .openclaw/extensions/browser-automation
 ```
 
 ## 🛠️ Sử dụng

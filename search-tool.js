@@ -79,22 +79,38 @@ if (!query) {
             }
         } catch (e) {
             // Fallback to standalone headless Chromium launch
-            browser = await chromium.launch({
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-gpu',
-                    '--disable-dev-shm-usage',
-                    '--disable-blink-features=AutomationControlled'
-                ]
-            });
-            isStandalone = true;
-            ctx = await browser.newContext({
-                userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                locale: 'vi-VN',
-                geolocation: { longitude: 105.8342, latitude: 21.0278 },
-                permissions: ['geolocation']
-            });
+            try {
+                browser = await chromium.launch({
+                    headless: true,
+                    args: [
+                        '--no-sandbox',
+                        '--disable-gpu',
+                        '--disable-dev-shm-usage',
+                        '--disable-blink-features=AutomationControlled'
+                    ]
+                });
+                isStandalone = true;
+                ctx = await browser.newContext({
+                    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    locale: 'vi-VN',
+                    geolocation: { longitude: 105.8342, latitude: 21.0278 },
+                    permissions: ['geolocation']
+                });
+            } catch (launchErr) {
+                let recommendation = "Vui lòng chạy lệnh: npx playwright install chromium --with-deps";
+                if (process.platform === 'linux') {
+                    recommendation = "Vui lòng chạy lệnh: sudo npx playwright install-deps chromium && npx playwright install chromium";
+                }
+                console.log(JSON.stringify([{
+                    title: "⚠️ Lỗi môi trường (Mất kết nối CDP & Thiếu Chromium trên VPS/Ubuntu Host)",
+                    url: "https://playwright.dev",
+                    snippet: `Không thể khởi chạy trình duyệt ngầm. LƯU Ý CHO VPS/UBUNTU: ${recommendation}. Lỗi chi tiết: ${launchErr.message}`
+                }], null, 2));
+                if (browser) {
+                    try { await browser.close(); } catch(_) {}
+                }
+                process.exit(0);
+            }
         }
 
         // Run search queries concurrently on three search engines
@@ -257,10 +273,11 @@ if (!query) {
     } catch (err) {
         console.error(JSON.stringify({ error: err.message }));
     } finally {
-        if (browser && isStandalone) {
+        if (browser) {
             try {
                 await browser.close();
             } catch(e) {}
         }
+        process.exit(0);
     }
 })();

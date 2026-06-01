@@ -21,13 +21,13 @@ Consolidated, zero-token, Cloudflare-bypassing Smart Search and dynamic Browser 
 To install via ClawHub or directly into your OpenClaw plugins folder:
 
 ```bash
-openclaw plugins install clawhub:openclaw-smart-search
+openclaw plugins install clawhub:openclaw-browser-automation
 ```
 
 Or clone this repository into your `.openclaw/extensions/` folder:
 
 ```bash
-git clone https://github.com/tuanminhhole/openclaw-smart-search.git .openclaw/extensions/openclaw-smart-search
+git clone https://github.com/tuanminhhole/openclaw-browser-automation.git .openclaw/extensions/browser-automation
 ```
 
 ## 🛠️ Usage

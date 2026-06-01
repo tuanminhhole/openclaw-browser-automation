@@ -2,7 +2,7 @@
   "id": "browser-automation",
   "name": "Smart Search & Browser Automation",
   "description": "Zero-token, Cloudflare-bypassing Stealth Search and dynamic Browser CDP controller plugin. Supports both headless Chromium and real Chrome debug mode.",
-  "version": "1.1.5",
+  "version": "1.2.0",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true,
@@ -30,13 +30,20 @@
     "additionalProperties": false
   },
   "docker": {
-    "apt": ["xvfb", "socat"],
-    "npmGlobal": ["playwright"],
+    "apt": [
+      "xvfb",
+      "socat"
+    ],
+    "npmGlobal": [
+      "playwright"
+    ],
     "postInstallScripts": [
       "npx playwright install chromium --with-deps",
       "ln -f -s /root/.cache/ms-playwright/chromium-*/chrome-linux*/chrome /usr/bin/google-chrome 2>/dev/null || true"
     ],
-    "extraHosts": ["host.docker.internal:host-gateway"],
+    "extraHosts": [
+      "host.docker.internal:host-gateway"
+    ],
     "entrypoint": {
       "description": "Auto-detect host Chrome or start local headless Chromium",
       "position": "before-gateway"
