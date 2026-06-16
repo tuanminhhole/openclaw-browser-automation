@@ -1,8 +1,8 @@
 {
   "id": "browser-automation",
-  "name": "Smart Search & Browser Automation",
-  "description": "Zero-token, Cloudflare-bypassing Stealth Search and dynamic Browser CDP controller plugin. Supports both headless Chromium and real Chrome debug mode.",
-  "version": "1.2.2",
+  "name": "Browser Automation",
+  "description": "Chrome/Chromium CDP browser controller. Supports real Chrome debug mode with headless Chromium fallback.",
+  "version": "1.3.0",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true,
@@ -11,10 +11,7 @@
     ]
   },
   "capabilityTags": [
-    "search",
     "browser",
-    "stealth",
-    "cloudflare-bypass",
     "playwright",
     "chromium"
   ],

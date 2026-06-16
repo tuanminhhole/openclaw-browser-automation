@@ -1,49 +1,42 @@
-# OpenClaw Smart Search & Browser Automation Plugin 🌐
+﻿# OpenClaw Browser Automation Plugin
 
-Consolidated, zero-token, Cloudflare-bypassing Smart Search and dynamic Browser CDP controller plugin for OpenClaw.
+Chrome/Chromium browser control for OpenClaw through Chrome DevTools Protocol (CDP).
 
-## 🚀 Features
+This plugin owns browser automation only. For search, use OpenClaw's built-in `web_search` capability.
 
-1. **Smart Search (`search-tool.js`)**: 
-   - No API Key required, free of charge.
-   - Bypasses Cloudflare limits by using dynamic headless stealth Chromium.
-   - DuckDuckGo / Google search aggregator.
-2. **Browser Automation (`browser-tool.js`)**:
-   - Advanced Chrome DevTools Protocol (CDP) client.
-   - Control real desktop Chrome or container Chrome dynamically.
-   - Capture screenshots, fill forms, execute JS snippets, scrape posts, extract clean inner text.
-3. **Automated Provisioning**:
-   - Auto-copies search and browser tools, debugging scripts, and markdown guides (`SKILL.md`, `BROWSER.md`) into all active agents' workspace folders.
-   - Dynamically patches `TOOLS.md` with system guidelines on boot.
+## Workspace Files
 
-## 📦 Installation
+On startup, the plugin syncs:
 
-To install via ClawHub or directly into your OpenClaw plugins folder:
+- `browser-tool.js`
+- `BROWSER.md`
+- one Chrome debug starter for the selected host OS:
+  - `start-chrome-debug.bat` on Windows
+  - `start-chrome-debug.sh` on macOS/Linux
+
+Legacy search helper files and old plugin skill prompt folders are removed from workspaces.
+
+## Real Chrome Debug Mode
+
+Start Chrome debug on the host machine first:
 
 ```bash
-openclaw plugins install clawhub:openclaw-browser-automation
+start-chrome-debug.bat
 ```
 
-Or clone this repository into your `.openclaw/extensions/` folder:
+or:
 
 ```bash
-git clone https://github.com/tuanminhhole/openclaw-browser-automation.git .openclaw/extensions/browser-automation
+./start-chrome-debug.sh
 ```
 
-## 🛠️ Usage
-
-Once enabled, the plugin automatically provisions workspace scripts. The bot can execute commands via `exec`/terminal tools:
+Then use:
 
 ```bash
-# 🔍 Stealth Search
-node search-tool.js "latest gold prices" 5
-
-# 🌐 Browser Automation
-node browser-tool.js open "https://vnexpress.net"
+node browser-tool.js status
+node browser-tool.js open https://example.com
 node browser-tool.js get_text
-node browser-tool.js screenshot
 ```
 
-## 📄 License
+The tool tries real host Chrome first and falls back to local headless Chromium for server/VPS use.
 
-MIT

@@ -23,12 +23,47 @@ const { chromium } = playwright;
 const action = process.argv[2];
 const param1 = process.argv[3];
 const param2 = process.argv[4];
-const CDP_URL = 'http://127.0.0.1:9222';
+const dns = require('dns').promises;
+const DEFAULT_CDP_URLS = [
+    'host-gateway:9222',
+    'http://127.0.0.1:9222',
+];
+const CDP_URLS = (process.env.OPENCLAW_BROWSER_CDP_URLS || DEFAULT_CDP_URLS.join(','))
+    .split(',')
+    .map((u) => u.trim())
+    .filter(Boolean);
+
+async function normalizeCdpUrl(url) {
+    if (url === 'host-gateway:9222') {
+        try {
+            const resolved = await dns.lookup('host.docker.internal');
+            return 'http://' + resolved.address + ':9222';
+        } catch (_) {
+            return 'http://host.docker.internal:9222';
+        }
+    }
+    return url;
+}
+
+async function connectPreferredChrome() {
+    let lastError;
+    for (const rawUrl of CDP_URLS) {
+        const url = await normalizeCdpUrl(rawUrl);
+        try {
+            const connected = await chromium.connectOverCDP(url, { timeout: 2500 });
+            console.error('[Browser] Connected CDP: ' + url);
+            return connected;
+        } catch (err) {
+            lastError = err;
+        }
+    }
+    throw lastError || new Error('No Chrome CDP endpoint available');
+}
 
 (async () => {
     let browser;
     try {
-        browser = await chromium.connectOverCDP(CDP_URL, { timeout: 5000 });
+        browser = await connectPreferredChrome();
         const ctx = browser.contexts()[0];
         const pages = ctx.pages();
         let page = pages.length > 0 ? pages[0] : await ctx.newPage();
@@ -63,8 +98,6 @@ const CDP_URL = 'http://127.0.0.1:9222';
                 const results = [];
                 const articles = document.querySelectorAll('[role="article"]');
                 for (const article of articles) {
-                    const textEl = article.querySelector('[data-ad-comet-preview="message"],[data-ad-preview="message"]');
-                    const fullText = (textEl ? textEl.innerText.trim() : '') || article.innerText.substring(0, 800);
                     const allLinks = Array.from(article.querySelectorAll('a[href]'));
                     let permalink = '';
                     for (const a of allLinks) { 
@@ -74,14 +107,66 @@ const CDP_URL = 'http://127.0.0.1:9222';
                             break; 
                         } 
                     }
+                    
                     let author = '';
-                    for (const el of article.querySelectorAll('a[role="link"] strong, h2 a, h3 a, h4 a')) { 
-                        const n = el.innerText.trim(); 
-                        if (n && n.length > 1 && n.length < 50) { 
-                            author = n; 
-                            break; 
-                        } 
+                    // 1. Try first to find links representing the author
+                    const authorCandidateLinks = Array.from(article.querySelectorAll('h2 a[role="link"], h3 a[role="link"], h4 a[role="link"], a[role="link"] strong, a[role="link"] > span'));
+                    for (const el of authorCandidateLinks) {
+                        const n = el.innerText.trim();
+                        if (n && n.length > 1 && n.length < 50 && !n.includes('·') && !n.includes('Group') && !n.includes('nhóm')) {
+                            author = n;
+                            break;
+                        }
                     }
+                    // 2. If not found, check headings h2/h3/h4/role="heading" directly (e.g. anonymous posts)
+                    if (!author) {
+                        const headings = Array.from(article.querySelectorAll('h2, h3, h4, [role="heading"]'));
+                        for (const h of headings) {
+                            const spans = Array.from(h.querySelectorAll('span'));
+                            const textSource = spans.length > 0 ? spans[0] : h;
+                            const n = textSource.innerText.trim();
+                            if (n && n.length > 1 && n.length < 50 && !n.includes('·') && !n.includes('Group') && !n.includes('nhóm')) {
+                                author = n;
+                                break;
+                            }
+                        }
+                    }
+
+                    let textEl = article.querySelector('[data-ad-comet-preview="message"],[data-ad-preview="message"]');
+                    if (!textEl) {
+                        // Look for a div/span with dir="auto" that is outside headings, links, and buttons
+                        const dirAutoEls = Array.from(article.querySelectorAll('[dir="auto"]'));
+                        for (const el of dirAutoEls) {
+                            if (el.closest('h2, h3, h4, [role="heading"], a, button')) continue;
+                            if (el.innerText.trim().length > 10) {
+                                textEl = el;
+                                break;
+                            }
+                        }
+                    }
+
+                    let fullText = '';
+                    if (textEl) {
+                        fullText = textEl.innerText.trim();
+                    } else {
+                        // Fallback to article innerText but clean up the header
+                        const rawText = article.innerText.trim();
+                        fullText = rawText;
+                        if (author && author !== 'N/A' && rawText.startsWith(author)) {
+                            const lines = rawText.split('\n');
+                            let contentStartIdx = 1;
+                            while (contentStartIdx < lines.length) {
+                                const line = lines[contentStartIdx].trim();
+                                if (line.length === 0 || line.includes('·') || line.length < 15) {
+                                    contentStartIdx++;
+                                } else {
+                                    break;
+                                }
+                            }
+                            fullText = lines.slice(contentStartIdx).join('\n').trim() || rawText;
+                        }
+                    }
+
                     let timePosted = '';
                     const timeLinks = allLinks.filter(a => { 
                         const h = a.href || ''; 

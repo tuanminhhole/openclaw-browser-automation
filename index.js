@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises';
+﻿import fs from 'node:fs/promises';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,7 @@ if (_homeBasename === 'npm' || _homeBasename === 'node_modules') {
 
 const PLUGIN_ID = 'browser-automation';
 
-// ── Managed block helper (idempotent insert/update) ──────────────────────────
+// â”€â”€ Managed block helper (idempotent insert/update) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function upsertManagedBlock(content, blockId, blockContent) {
   const startTag = `<!-- OPENCLAW:${blockId}:START -->`;
   const endTag = `<!-- OPENCLAW:${blockId}:END -->`;
@@ -32,7 +32,7 @@ function upsertManagedBlock(content, blockId, blockContent) {
   return content.trim() + '\n\n' + newBlock + '\n';
 }
 
-// ── Managed block helper for non-HTML files (Dockerfile, entrypoint.sh) ──────
+// â”€â”€ Managed block helper for non-HTML files (Dockerfile, entrypoint.sh) â”€â”€â”€â”€â”€â”€
 function upsertShellManagedBlock(content, blockId, blockContent) {
   const startTag = `# OPENCLAW:${blockId}:START`;
   const endTag = `# OPENCLAW:${blockId}:END`;
@@ -46,21 +46,21 @@ function upsertShellManagedBlock(content, blockId, blockContent) {
   return content.trim() + '\n\n' + newBlock + '\n';
 }
 
-// ── Docker patching ──────────────────────────────────────────────────────────
+// â”€â”€ Docker patching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Patches Dockerfile, entrypoint.sh, docker-compose.yml to add browser deps.
-// Uses managed blocks so it's idempotent — safe to run on every startup.
+// Uses managed blocks so it's idempotent â€” safe to run on every startup.
 // Playwright/Chromium install is a separate Docker layer so it's cached across rebuilds.
 function patchDockerFiles(projectDir, logger) {
   const dockerDir = path.join(projectDir, 'docker', 'openclaw');
 
-  // ── 1. Patch Dockerfile ──────────────────────────────────────────────────
+  // â”€â”€ 1. Patch Dockerfile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const dockerfilePath = path.join(dockerDir, 'Dockerfile');
   if (existsSync(dockerfilePath)) {
     try {
       let dockerfile = readFileSync(dockerfilePath, 'utf8');
       const browserBlock = [
         '# Browser Automation: Playwright + Chromium (browser-automation plugin)',
-        '# This layer is cached — Chromium is only downloaded on the first build.',
+        '# This layer is cached â€” Chromium is only downloaded on the first build.',
         'RUN apt-get update && apt-get install -y --no-install-recommends xvfb socat \\',
         '    && rm -rf /var/lib/apt/lists/*',
         'RUN npm install -g playwright \\',
@@ -89,7 +89,7 @@ function patchDockerFiles(projectDir, logger) {
     }
   }
 
-  // ── 2. Patch entrypoint.sh ─────────────────────────────────────────────────
+  // â”€â”€ 2. Patch entrypoint.sh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const entrypointPath = path.join(dockerDir, 'entrypoint.sh');
   if (existsSync(entrypointPath)) {
     try {
@@ -147,7 +147,7 @@ function patchDockerFiles(projectDir, logger) {
     }
   }
 
-  // ── 3. Patch docker-compose.yml ────────────────────────────────────────────
+  // â”€â”€ 3. Patch docker-compose.yml â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const composePath = path.join(dockerDir, 'docker-compose.yml');
   if (existsSync(composePath)) {
     try {
@@ -171,7 +171,7 @@ function patchDockerFiles(projectDir, logger) {
   }
 }
 
-// ── Browser config injection into openclaw.json ──────────────────────────────
+// â”€â”€ Browser config injection into openclaw.json â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function injectBrowserConfig(projectDir, logger) {
   const configPath = path.join(projectDir, '.openclaw', 'openclaw.json');
   if (!existsSync(configPath)) return;
@@ -202,14 +202,14 @@ function injectBrowserConfig(projectDir, logger) {
 
 const plugin = definePluginEntry({
   id: PLUGIN_ID,
-  name: 'Smart Search & Browser Automation',
-  description: 'Zero-token, Cloudflare-bypassing Stealth Search and dynamic Browser CDP controller plugin.',
+  name: 'Browser Automation',
+  description: 'Chrome/Chromium CDP browser controller with real Chrome debug support and headless fallback.',
 
   register(api) {
     const logger = api.logger;
     logger.info('[browser-automation] Registering plugin...');
 
-    // ── Proactively fix permissions to prevent openclaw gateway broad permissions error ──
+    // â”€â”€ Proactively fix permissions to prevent openclaw gateway broad permissions error â”€â”€
     try {
       chmodSync(__dirname, 0o755);
       for (const f of readdirSync(__dirname)) {
@@ -229,24 +229,22 @@ const plugin = definePluginEntry({
       projectDir = '/mnt/project';
     }
 
-    // ── Inject browser config into openclaw.json ──────────────────────────
+    // â”€â”€ Inject browser config into openclaw.json â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     injectBrowserConfig(projectDir, logger);
 
-    // ── Patch Docker files if project uses Docker ─────────────────────────
+    // â”€â”€ Patch Docker files if project uses Docker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     patchDockerFiles(projectDir, logger);
 
     async function syncWorkspaceAssets() {
       try {
         if (!cfg.agents?.list || cfg.agents.list.length === 0) return;
 
-        logger.info('[browser-automation] Syncing stealth search & browser assets into workspaces...');
+        logger.info('[browser-automation] Syncing browser automation assets into workspaces...');
 
         // Reading source assets from plugin directory
-        const searchToolContent = await fs.readFile(path.join(__dirname, 'search-tool.js'), 'utf8');
         const browserToolContent = await fs.readFile(path.join(__dirname, 'browser-tool.js'), 'utf8');
         const batContent = await fs.readFile(path.join(__dirname, 'start-chrome-debug.bat'), 'utf8');
         const shContent = await fs.readFile(path.join(__dirname, 'start-chrome-debug.sh'), 'utf8');
-        const skillContent = await fs.readFile(path.join(__dirname, 'SKILL.md'), 'utf8');
 
         for (const a of cfg.agents.list) {
           const workspaceRel = a.workspace || cfg.agents.defaults?.workspace || 'workspace';
@@ -256,25 +254,28 @@ const plugin = definePluginEntry({
             await fs.mkdir(workspacePath, { recursive: true });
           }
 
-          // 1. Write tool files
-          await fs.writeFile(path.join(workspacePath, 'search-tool.js'), searchToolContent, 'utf8');
+          // 1. Write browser controller only. Search belongs to OpenClaw web_search.
           await fs.writeFile(path.join(workspacePath, 'browser-tool.js'), browserToolContent, 'utf8');
+          const legacySearchTool = ['search', 'tool.js'].join('-');
+          await fs.rm(path.join(workspacePath, legacySearchTool), { force: true }).catch(() => {});
           
-          // 2. Write startup scripts
-          await fs.writeFile(path.join(workspacePath, 'start-chrome-debug.bat'), batContent, 'utf8');
-          await fs.writeFile(path.join(workspacePath, 'start-chrome-debug.sh'), shContent, 'utf8');
-          try {
-            await fs.chmod(path.join(workspacePath, 'start-chrome-debug.sh'), 0o755);
-          } catch(e) {}
+          // 2. Write one startup script for the selected/host OS to avoid duplicates.
+          const pluginConfig = cfg.plugins?.entries?.[PLUGIN_ID]?.config || cfg.plugins?.entries?.['openclaw-browser-automation']?.config || {};
+          const hostOs = pluginConfig.hostOs || process.env.OPENCLAW_BROWSER_HOST_OS || process.env.OPENCLAW_SETUP_OS || process.platform;
+          const useBat = hostOs === 'win' || hostOs === 'windows' || hostOs === 'win32';
+          const keepScript = useBat ? 'start-chrome-debug.bat' : 'start-chrome-debug.sh';
+          const removeScript = useBat ? 'start-chrome-debug.sh' : 'start-chrome-debug.bat';
+          await fs.writeFile(path.join(workspacePath, keepScript), useBat ? batContent : shContent, 'utf8');
+          await fs.rm(path.join(workspacePath, removeScript), { force: true }).catch(() => {});
+          if (!useBat) {
+            try {
+              await fs.chmod(path.join(workspacePath, keepScript), 0o755);
+            } catch(e) {}
+          }
 
-          // 3. Write SKILL.md under skills catalog (both cl-stealth-search and openclaw-smart-search dirs for maximum compatibility)
-          const compatDirs = ['cl-stealth-search', 'openclaw-smart-search', 'browser-automation'];
-          for (const cDir of compatDirs) {
-            const skillDir = path.join(workspacePath, 'plugin-skills', cDir);
-            if (!existsSync(skillDir)) {
-              await fs.mkdir(skillDir, { recursive: true });
-            }
-            await fs.writeFile(path.join(skillDir, 'SKILL.md'), skillContent, 'utf8');
+          // 3. Remove legacy prompt folders that told agents to use terminal-based search.
+          for (const cDir of ['cl-stealth-search', 'openclaw-smart-search', 'browser-automation']) {
+            await fs.rm(path.join(workspacePath, 'plugin-skills', cDir), { recursive: true, force: true }).catch(() => {});
           }
 
           // 4. Patch TOOLS.md
@@ -283,43 +284,43 @@ const plugin = definePluginEntry({
           try {
             toolsContent = await fs.readFile(toolsMdPath, 'utf8');
           } catch (e) {
-            toolsContent = '# Hướng dẫn sử dụng Tools\n';
+            toolsContent = '# HÆ°á»›ng dáº«n sá»­ dá»¥ng Tools\n';
           }
-
-          const guideText = `## 🌐 Smart Search & Browser Automation
-- **⛔ CẤM DÙNG NATIVE TOOL:** TUYỆT ĐỐI KHÔNG BAO GIỜ gọi native tool \`browser\` (tool có schema \`{"url","action"}\`) hoặc \`web_fetch\`. Hai tool native này đã bị vô hiệu hóa trên hệ thống và sẽ LUÔN trả lỗi. Mọi thao tác tìm kiếm/trình duyệt PHẢI thông qua \`exec\` để chạy \`node search-tool.js\` hoặc \`node browser-tool.js\`.
-- **Tìm kiếm Internet:** Mỗi khi cần tìm kiếm Internet/Web, tra cứu giá vàng, thời tiết, tỷ giá ngoại tệ hay tin tức mới, bạn BẮT BUỘC phải gọi công cụ \`exec\` để chạy lệnh terminal: \`node search-tool.js "<từ khóa>" 5\`! Lệnh này cực kỳ nhanh, tàng hình và miễn phí.
-- **Lấy nội dung trang web:** Khi cần đọc nội dung chi tiết từ một trang web (ví dụ bảng giá vàng, bài viết), BẮT BUỘC dùng 2 bước qua \`exec\`: (1) \`node browser-tool.js open <url>\` → (2) \`node browser-tool.js get_text\`. KHÔNG dùng \`web_fetch\` vì nó không render JavaScript và sẽ trả về "Đang tải..." đối với các trang dynamic.
-- **Vượt Cloudflare:** TUYỆT ĐỐI KHÔNG dùng \`browser-tool.js\` để truy cập trực tiếp các trang nguồn như \`sjc.com.vn\` vì chúng luôn chặn Cloudflare hoàn toàn. Hãy dùng \`search-tool.js\` để lấy các bài báo tổng hợp tin tức từ các trang tin tức trung gian không bao giờ bị chặn (VnExpress, 24h, VietnamNet).
-- **Trình duyệt tự động:** Xem chi tiết hướng dẫn các lệnh mở trang, cuộn trang, click, chụp ảnh màn hình tại tệp hướng dẫn **BROWSER.md** hoặc file skill **SKILL.md** của bạn. Điều khiển trình duyệt qua lệnh terminal: \`node browser-tool.js <action> [params]\`.
-- **Chế độ xem trực quan (Chrome thật):** Chạy file \`start-chrome-debug.bat\` (Windows) hoặc \`start-chrome-debug.sh\` (Mac/Linux) trên máy tính trước → bot sẽ tự động kết nối điều khiển Chrome thật trên màn hình. Nếu không chạy file này, bot sẽ dùng Chromium ẩn (headless).
-- **Chế độ ẩn (headless):** Mặc định bot dùng Chromium ẩn, hoạt động hoàn toàn tự động không cần mở cửa sổ trình duyệt — phù hợp cho server/VPS.`;
-
-          const updatedTools = upsertManagedBlock(toolsContent, 'STEALTH_BROWSER_GUIDE', guideText);
-          await fs.writeFile(toolsMdPath, updatedTools, 'utf8');
+          const cleanedTools = toolsContent.replace(/<!-- OPENCLAW:STEALTH_BROWSER_GUIDE:START -->[\s\S]*?<!-- OPENCLAW:STEALTH_BROWSER_GUIDE:END -->\n?/g, '').trim() + '\n';
+          await fs.writeFile(toolsMdPath, cleanedTools, 'utf8');
 
           // 5. Generate a basic BROWSER.md helper in workspace if missing
           const browserMdPath = path.join(workspacePath, 'BROWSER.md');
-          if (!existsSync(browserMdPath)) {
-            const browserMdContent = `# 🌍 Hướng dẫn Browser (Chrome CDP)
-- **⛔ QUAN TRỌNG:** KHÔNG dùng native tool \`browser\` hoặc \`web_fetch\`. Chỉ dùng \`exec\` → \`node browser-tool.js\`.
-- **Script điều khiển:** \`browser-tool.js\` (chạy qua \`exec\`)
-- **Kết nối Chrome debug:** \`http://127.0.0.1:9222\`
-- **Chế độ hoạt động:**
-  - **Headless (mặc định):** Chromium chạy ẩn, hoàn toàn tự động. Phù hợp server/VPS.
-  - **Chrome thật (trực quan):** Chạy \`start-chrome-debug.bat\` / \`start-chrome-debug.sh\` trên máy host → bot điều khiển Chrome thật trên màn hình.
-- **Hành động phổ biến:**
-  - \`node browser-tool.js open <url>\` : Mở trang web.
-  - \`node browser-tool.js get_text [max_chars]\` : Trích xuất văn bản sạch (sau khi JS render xong).
-  - \`node browser-tool.js screenshot [path]\` : Chụp ảnh màn hình.
-  - \`node browser-tool.js click "<css_selector>"\` : Click chuột.
-  - \`node browser-tool.js fill "<css_selector>" "<text>"\` : Nhập liệu.
-  - \`node browser-tool.js scroll [px]\` : Cuộn trang.
-  - \`node browser-tool.js tabs\` : Liệt kê tab đang mở.
-- **Lấy dữ liệu từ trang dynamic (giá vàng, tỷ giá...):** Chạy 2 bước: (1) \`node browser-tool.js open <url>\` → (2) \`node browser-tool.js get_text\`.
-`;
-            await fs.writeFile(browserMdPath, browserMdContent, 'utf8');
-          }
+          const cleanBrowserMdContent = [
+            '# Browser Automation',
+            '',
+            "Use `browser-tool.js` only for browser control. For normal web search, use OpenClaw's built-in `web_search` capability.",
+            '',
+            '## Chrome Debug Mode',
+            '',
+            'On a desktop machine, start real Chrome in debug mode before asking the bot to browse:',
+            '',
+            '- Windows: run `start-chrome-debug.bat`',
+            '- macOS/Linux: run `./start-chrome-debug.sh`',
+            '',
+            'The tool will try real host Chrome first. If Chrome debug is not available, it falls back to local headless Chromium, which is suitable for VPS/server use.',
+            '',
+            '## Browser Commands',
+            '',
+            '- `node browser-tool.js status`: check the active browser/tab',
+            '- `node browser-tool.js open <url>`: open a page',
+            '- `node browser-tool.js get_text [max_chars]`: read rendered page text',
+            '- `node browser-tool.js get_links [filter]`: list links',
+            '- `node browser-tool.js click "<selector>"`: click an element',
+            '- `node browser-tool.js fill "<selector>" "<text>"`: fill an input',
+            '- `node browser-tool.js scroll [px]`: scroll the page',
+            '- `node browser-tool.js screenshot [path]`: capture the viewport',
+            '- `node browser-tool.js tabs`: list tabs',
+            '',
+            'For search, use `web_search`. Use `browser-tool.js` only when a rendered browser is needed.',
+            '',
+          ].join('\n');
+          await fs.writeFile(browserMdPath, cleanBrowserMdContent, 'utf8');
 
           logger.info(`[browser-automation] Synchronized workspace assets for agent: ${a.id}`);
         }
@@ -336,3 +337,6 @@ const plugin = definePluginEntry({
 });
 
 export default plugin;
+
+
+

@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+﻿import { execSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,16 +10,16 @@ async function main() {
   const buildDir = path.join(srcDir, '..', 'openclaw-browser-automation-build');
   const pkgPath = path.join(srcDir, 'package.json');
 
-  console.log('🚀 Starting ClawHub Release Workflow...');
+  console.log('ðŸš€ Starting ClawHub Release Workflow...');
 
   // 1. Read package.json to get version
   const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
   const version = pkg.version;
-  console.log(`📦 Releasing openclaw-browser-automation@${version}...`);
+  console.log(`ðŸ“¦ Releasing openclaw-browser-automation@${version}...`);
 
   try {
     // 2. Package for ClawHub
-    console.log('✈️ Preparing ClawHub package build folder...');
+    console.log('âœˆï¸ Preparing ClawHub package build folder...');
     try {
       await fs.rm(buildDir, { recursive: true, force: true });
     } catch (e) {}
@@ -29,11 +29,9 @@ async function main() {
       'package.json',
       'openclaw.plugin.json',
       'index.js',
-      'search-tool.js',
       'browser-tool.js',
       'start-chrome-debug.bat',
       'start-chrome-debug.sh',
-      'SKILL.md',
       'README.md',
       'README.vi.md',
       'LICENSE'
@@ -45,7 +43,7 @@ async function main() {
       try {
         await fs.copyFile(srcFile, destFile);
       } catch (err) {
-        console.warn(`  ⚠ Warning: could not copy ${file}:`, err.message);
+        console.warn(`  âš  Warning: could not copy ${file}:`, err.message);
       }
     }
 
@@ -56,24 +54,25 @@ async function main() {
     } catch (e) {}
 
     // Publish to ClawHub
-    console.log('✈️ Publishing package to ClawHub...');
+    console.log('âœˆï¸ Publishing package to ClawHub...');
     execSync(
-      `npx clawhub package publish "${buildDir}" --source-repo="https://github.com/tuanminhhole/openclaw-smart-search" --source-commit="${commitHash}"`,
+      `npx clawhub package publish "${buildDir}" --source-repo="https://github.com/tuanminhhole/openclaw-browser-automation" --source-commit="${commitHash}"`,
       { stdio: 'inherit', cwd: srcDir }
     );
-    console.log('✨ ClawHub Publish Completed Successfully!');
+    console.log('âœ¨ ClawHub Publish Completed Successfully!');
 
   } catch (err) {
-    console.error('❌ Error during release workflow:', err.message);
+    console.error('âŒ Error during release workflow:', err.message);
   } finally {
     // Cleanup build directory
-    console.log('🧹 Cleaning up temporary build artifacts...');
+    console.log('ðŸ§¹ Cleaning up temporary build artifacts...');
     try {
       await fs.rm(buildDir, { recursive: true, force: true });
     } catch (e) {}
   }
 
-  console.log('🎉 Release Workflow Finished Successfully!');
+  console.log('ðŸŽ‰ Release Workflow Finished Successfully!');
 }
 
 main();
+

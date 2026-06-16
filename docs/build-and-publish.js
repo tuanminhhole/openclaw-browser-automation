@@ -54,11 +54,9 @@ async function main() {
       'package.json',
       'openclaw.plugin.json',
       'index.js',
-      'search-tool.js',
       'browser-tool.js',
       'start-chrome-debug.bat',
       'start-chrome-debug.sh',
-      'SKILL.md',
       'README.md',
       'README.vi.md',
       'LICENSE'
