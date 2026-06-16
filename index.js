@@ -18,6 +18,27 @@ if (_homeBasename === 'npm' || _homeBasename === 'node_modules') {
 
 const PLUGIN_ID = 'browser-automation';
 
+function normalizeHostOs(value = '') {
+  const v = String(value || '').trim().toLowerCase();
+  if (['win', 'windows', 'win32'].includes(v)) return 'win';
+  if (['mac', 'macos', 'darwin'].includes(v)) return 'macos';
+  if (['vps', 'server'].includes(v)) return 'vps';
+  if (['linux', 'linux-desktop', 'ubuntu', 'debian'].includes(v)) return 'linux-desktop';
+  return '';
+}
+
+function resolveHostOs(projectDir = '', cfg = {}) {
+  const pluginEntries = cfg.plugins?.entries || {};
+  const pluginConfig = pluginEntries[PLUGIN_ID]?.config || pluginEntries['openclaw-browser-automation']?.config || {};
+  return normalizeHostOs(
+    pluginConfig.hostOs ||
+    cfg.meta?.osChoice ||
+    cfg.meta?.hostOs ||
+    process.env.OPENCLAW_BROWSER_HOST_OS ||
+    process.env.OPENCLAW_SETUP_OS
+  ) || (/^[A-Za-z]:[\\/]/.test(String(projectDir || '')) ? 'win' : normalizeHostOs(process.platform) || 'linux-desktop');
+}
+
 // â”€â”€ Managed block helper (idempotent insert/update) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function upsertManagedBlock(content, blockId, blockContent) {
   const startTag = `<!-- OPENCLAW:${blockId}:START -->`;
@@ -265,9 +286,8 @@ const plugin = definePluginEntry({
           await fs.rm(path.join(workspacePath, 'BROWSER.md'), { force: true }).catch(() => {});
           
           // 2. Write one startup script for the selected/host OS to avoid duplicates.
-          const pluginConfig = cfg.plugins?.entries?.[PLUGIN_ID]?.config || cfg.plugins?.entries?.['openclaw-browser-automation']?.config || {};
-          const hostOs = pluginConfig.hostOs || process.env.OPENCLAW_BROWSER_HOST_OS || process.env.OPENCLAW_SETUP_OS || process.platform;
-          const useBat = hostOs === 'win' || hostOs === 'windows' || hostOs === 'win32';
+          const hostOs = resolveHostOs(projectDir, cfg);
+          const useBat = hostOs === 'win';
           const keepScript = useBat ? 'start-chrome-debug.bat' : 'start-chrome-debug.sh';
           const removeScript = useBat ? 'start-chrome-debug.sh' : 'start-chrome-debug.bat';
           await fs.writeFile(path.join(pluginSkillPath, keepScript), useBat ? batContent : shContent, 'utf8');
