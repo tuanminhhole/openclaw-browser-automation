@@ -4,9 +4,9 @@ Chrome/Chromium browser control for OpenClaw through Chrome DevTools Protocol (C
 
 This plugin owns browser automation only. For search, use OpenClaw's built-in `web_search` capability.
 
-## Workspace Files
+## Plugin Skill Files
 
-On startup, the plugin syncs:
+On startup, the plugin syncs files into each bot workspace under `plugin-skills/browser-automation/`:
 
 - `browser-tool.js`
 - `BROWSER.md`
@@ -14,28 +14,28 @@ On startup, the plugin syncs:
   - `start-chrome-debug.bat` on Windows
   - `start-chrome-debug.sh` on macOS/Linux
 
-Legacy search helper files and old plugin skill prompt folders are removed from workspaces.
+Legacy root-level browser/search helper files and old search prompt folders are removed from workspaces.
 
 ## Real Chrome Debug Mode
 
 Start Chrome debug on the host machine first:
 
 ```bash
-start-chrome-debug.bat
+plugin-skills\browser-automation\start-chrome-debug.bat
 ```
 
 or:
 
 ```bash
-./start-chrome-debug.sh
+./plugin-skills/browser-automation/start-chrome-debug.sh
 ```
 
 Then use:
 
 ```bash
-node browser-tool.js status
-node browser-tool.js open https://example.com
-node browser-tool.js get_text
+node plugin-skills/browser-automation/browser-tool.js status
+node plugin-skills/browser-automation/browser-tool.js open https://example.com
+node plugin-skills/browser-automation/browser-tool.js get_text
 ```
 
 The tool tries real host Chrome first and falls back to local headless Chromium for server/VPS use.
