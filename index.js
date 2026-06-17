@@ -260,7 +260,7 @@ const plugin = definePluginEntry({
       try {
         if (!cfg.agents?.list || cfg.agents.list.length === 0) return;
 
-        logger.info('[browser-automation] Syncing browser automation assets into plugin-skills/browser-automation...');
+        logger.info('[browser-automation] Syncing browser automation skill into <workspace>/skills/browser-automation...');
 
         // Reading source assets from plugin directory
         const browserToolContent = await fs.readFile(path.join(__dirname, 'browser-tool.js'), 'utf8');
@@ -275,34 +275,40 @@ const plugin = definePluginEntry({
             await fs.mkdir(workspacePath, { recursive: true });
           }
 
-          const pluginSkillPath = path.join(workspacePath, 'plugin-skills', 'browser-automation');
-          await fs.mkdir(pluginSkillPath, { recursive: true });
+          // Correct location: <workspace>/skills/<name>/ is the highest-precedence skill
+          // source OpenClaw scans (source "openclaw-workspace"), matching how the other
+          // working skills (cronjob, infographic-generator) are installed. OpenClaw does
+          // NOT scan <workspace>/plugin-skills, and .openclaw/plugin-skills ranks below
+          // bundled skills, so neither is suitable here.
+          const skillDir = path.join(workspacePath, 'skills', 'browser-automation');
+          await fs.mkdir(skillDir, { recursive: true });
 
-          // 1. Write browser controller into the plugin skill folder only.
-          await fs.writeFile(path.join(pluginSkillPath, 'browser-tool.js'), browserToolContent, 'utf8');
-          const legacySearchTool = ['search', 'tool.js'].join('-');
-          await fs.rm(path.join(workspacePath, legacySearchTool), { force: true }).catch(() => {});
-          await fs.rm(path.join(workspacePath, 'browser-tool.js'), { force: true }).catch(() => {});
-          await fs.rm(path.join(workspacePath, 'BROWSER.md'), { force: true }).catch(() => {});
-          
+          // 1. Write browser controller into the skill folder.
+          await fs.writeFile(path.join(skillDir, 'browser-tool.js'), browserToolContent, 'utf8');
+
           // 2. Write one startup script for the selected/host OS to avoid duplicates.
           const hostOs = resolveHostOs(projectDir, cfg);
           const useBat = hostOs === 'win';
           const keepScript = useBat ? 'start-chrome-debug.bat' : 'start-chrome-debug.sh';
           const removeScript = useBat ? 'start-chrome-debug.sh' : 'start-chrome-debug.bat';
-          await fs.writeFile(path.join(pluginSkillPath, keepScript), useBat ? batContent : shContent, 'utf8');
-          await fs.rm(path.join(workspacePath, removeScript), { force: true }).catch(() => {});
-          await fs.rm(path.join(workspacePath, keepScript), { force: true }).catch(() => {});
-          await fs.rm(path.join(pluginSkillPath, removeScript), { force: true }).catch(() => {});
+          await fs.writeFile(path.join(skillDir, keepScript), useBat ? batContent : shContent, 'utf8');
+          await fs.rm(path.join(skillDir, removeScript), { force: true }).catch(() => {});
           if (!useBat) {
             try {
-              await fs.chmod(path.join(pluginSkillPath, keepScript), 0o755);
+              await fs.chmod(path.join(skillDir, keepScript), 0o755);
             } catch(e) {}
           }
 
-          // 3. Remove legacy prompt folders that told agents to use terminal-based search.
+          // 3. Remove legacy / wrong-location assets written by earlier plugin versions.
+          await fs.rm(path.join(workspacePath, 'plugin-skills', 'browser-automation'), { recursive: true, force: true }).catch(() => {});
+          await fs.rm(path.join(projectDir, '.openclaw', 'plugin-skills', 'browser-automation'), { recursive: true, force: true }).catch(() => {});
+          const legacySearchTool = ['search', 'tool.js'].join('-');
+          await fs.rm(path.join(workspacePath, legacySearchTool), { force: true }).catch(() => {});
+          await fs.rm(path.join(workspacePath, 'browser-tool.js'), { force: true }).catch(() => {});
+          await fs.rm(path.join(workspacePath, 'BROWSER.md'), { force: true }).catch(() => {});
           for (const cDir of ['cl-stealth-search', 'openclaw-smart-search']) {
             await fs.rm(path.join(workspacePath, 'plugin-skills', cDir), { recursive: true, force: true }).catch(() => {});
+            await fs.rm(path.join(workspacePath, 'skills', cDir), { recursive: true, force: true }).catch(() => {});
           }
 
           // 4. Patch TOOLS.md
@@ -316,45 +322,54 @@ const plugin = definePluginEntry({
           const cleanedTools = toolsContent.replace(/<!-- OPENCLAW:STEALTH_BROWSER_GUIDE:START -->[\s\S]*?<!-- OPENCLAW:STEALTH_BROWSER_GUIDE:END -->\n?/g, '').trim() + '\n';
           await fs.writeFile(toolsMdPath, cleanedTools, 'utf8');
 
-          // 5. Generate browser instructions in the plugin skill folder.
-          const browserMdPath = path.join(pluginSkillPath, 'BROWSER.md');
-          const cleanBrowserMdContent = [
+          // 5. Write the skill instructions as SKILL.md WITH YAML frontmatter. The
+          //    OpenClaw skill loader skips any SKILL.md that lacks a `description`, and
+          //    only ever reads a file named SKILL.md (never BROWSER.md). Command paths
+          //    are relative to the workspace root.
+          const skillMdContent = [
+            '---',
+            'name: browser-automation',
+            'description: Use when controlling a real web page with the browser-tool CLI - open pages, read rendered text/links, click, fill forms, screenshot, manage tabs. For plain web search use the built-in web_search instead.',
+            'user-invocable: false',
+            '---',
+            '',
             '# Browser Automation',
             '',
-            "This plugin skill owns browser automation only. For normal web search, use OpenClaw's built-in `web_search` capability.",
+            "This skill owns browser automation only. For normal web search, use OpenClaw's built-in `web_search` capability.",
             '',
-            'Run commands from this folder or pass the full path from the workspace root:',
+            'Run commands from the workspace root:',
             '',
-            '- `cd plugin-skills/browser-automation && node browser-tool.js status`',
-            '- `node plugin-skills/browser-automation/browser-tool.js status`',
+            '- `node skills/browser-automation/browser-tool.js status`',
+            '- or `cd skills/browser-automation && node browser-tool.js status`',
             '',
             '## Chrome Debug Mode',
             '',
             'On a desktop machine, start real Chrome in debug mode before asking the bot to browse:',
             '',
-            '- Windows: run `start-chrome-debug.bat`',
-            '- macOS/Linux: run `./start-chrome-debug.sh`',
+            '- Windows: run `skills/browser-automation/start-chrome-debug.bat`',
+            '- macOS/Linux: run `./skills/browser-automation/start-chrome-debug.sh`',
             '',
             'The tool will try real host Chrome first. If Chrome debug is not available, it falls back to local headless Chromium, which is suitable for VPS/server use.',
             '',
             '## Browser Commands',
             '',
-            '- `node plugin-skills/browser-automation/browser-tool.js status`: check the active browser/tab',
-            '- `node plugin-skills/browser-automation/browser-tool.js open <url>`: open a page',
-            '- `node plugin-skills/browser-automation/browser-tool.js get_text [max_chars]`: read rendered page text',
-            '- `node plugin-skills/browser-automation/browser-tool.js get_links [filter]`: list links',
-            '- `node plugin-skills/browser-automation/browser-tool.js click "<selector>"`: click an element',
-            '- `node plugin-skills/browser-automation/browser-tool.js fill "<selector>" "<text>"`: fill an input',
-            '- `node plugin-skills/browser-automation/browser-tool.js scroll [px]`: scroll the page',
-            '- `node plugin-skills/browser-automation/browser-tool.js screenshot [path]`: capture the viewport',
-            '- `node plugin-skills/browser-automation/browser-tool.js tabs`: list tabs',
+            '- `node skills/browser-automation/browser-tool.js status`: check the active browser/tab',
+            '- `node skills/browser-automation/browser-tool.js open <url>`: open a page',
+            '- `node skills/browser-automation/browser-tool.js get_text [max_chars]`: read rendered page text',
+            '- `node skills/browser-automation/browser-tool.js get_links [filter]`: list links',
+            '- `node skills/browser-automation/browser-tool.js click "<selector>"`: click an element',
+            '- `node skills/browser-automation/browser-tool.js fill "<selector>" "<text>"`: fill an input',
+            '- `node skills/browser-automation/browser-tool.js scroll [px]`: scroll the page',
+            '- `node skills/browser-automation/browser-tool.js screenshot [path]`: capture the viewport',
+            '- `node skills/browser-automation/browser-tool.js tabs`: list tabs',
             '',
             'Do not use `search-tool.js`; this plugin does not provide search. Use `web_search` for search and this browser tool only when a rendered browser is needed.',
             '',
           ].join('\n');
-          await fs.writeFile(browserMdPath, cleanBrowserMdContent, 'utf8');
+          await fs.writeFile(path.join(skillDir, 'SKILL.md'), skillMdContent, 'utf8');
+          await fs.rm(path.join(skillDir, 'BROWSER.md'), { force: true }).catch(() => {});
 
-          logger.info(`[browser-automation] Synchronized workspace assets for agent: ${a.id}`);
+          logger.info(`[browser-automation] Synchronized skill into skills/browser-automation for agent: ${a.id}`);
         }
       } catch (err) {
         logger.error(`[browser-automation] Failed to synchronize workspace assets: ${err.message}`);

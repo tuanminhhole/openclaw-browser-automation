@@ -2,7 +2,7 @@
   "id": "browser-automation",
   "name": "Browser Automation",
   "description": "Chrome/Chromium CDP browser controller. Supports real Chrome debug mode with headless Chromium fallback.",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true,
@@ -26,7 +26,15 @@
       "hostOs": {
         "type": "string",
         "description": "Host OS selected by OpenClaw Setup; controls which Chrome debug helper script is copied.",
-        "enum": ["win", "windows", "win32", "macos", "linux-desktop", "linux", "vps"],
+        "enum": [
+          "win",
+          "windows",
+          "win32",
+          "macos",
+          "linux-desktop",
+          "linux",
+          "vps"
+        ],
         "default": "win"
       }
     },

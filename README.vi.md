@@ -4,38 +4,40 @@ Dieu khien Chrome/Chromium cho OpenClaw qua Chrome DevTools Protocol (CDP).
 
 Plugin nay chi phu trach tu dong hoa trinh duyet. Khi can tim kiem web, dung nang luc `web_search` co san cua OpenClaw.
 
-## File duoc dong bo vao plugin-skill
+## File duoc cai vao skill
 
-Khi khoi dong, plugin dong bo vao tung workspace bot tai `plugin-skills/browser-automation/`:
+Khi khoi dong, plugin cai mot skill vao tung workspace bot tai `skills/browser-automation/`
+(thu muc `skills/` la nguon skill OpenClaw quet voi uu tien cao nhat):
 
+- `SKILL.md` — huong dan skill kem YAML frontmatter de skill-loader cua OpenClaw nhan dien
 - `browser-tool.js`
-- `BROWSER.md`
 - mot file mo Chrome debug dung theo OS host:
   - `start-chrome-debug.bat` tren Windows
   - `start-chrome-debug.sh` tren macOS/Linux
 
-Nhung file browser/search cu o root workspace va prompt folder search cu se duoc don khoi workspace.
+Nhung file browser/search cu o root workspace, prompt folder search cu, va asset sai vi tri truoc day
+(`plugin-skills/browser-automation`) se duoc don khoi workspace.
 
 ## Dung Chrome that
 
 Mo Chrome debug tren may host truoc:
 
 ```bash
-plugin-skills\browser-automation\start-chrome-debug.bat
+skills\browser-automation\start-chrome-debug.bat
 ```
 
 hoac:
 
 ```bash
-./plugin-skills/browser-automation/start-chrome-debug.sh
+./skills/browser-automation/start-chrome-debug.sh
 ```
 
 Sau do dung:
 
 ```bash
-node plugin-skills/browser-automation/browser-tool.js status
-node plugin-skills/browser-automation/browser-tool.js open https://example.com
-node plugin-skills/browser-automation/browser-tool.js get_text
+node skills/browser-automation/browser-tool.js status
+node skills/browser-automation/browser-tool.js open https://example.com
+node skills/browser-automation/browser-tool.js get_text
 ```
 
 Tool se uu tien Chrome that tren host. Neu khong co Chrome debug, tool fallback sang Chromium headless phu hop cho VPS/server.
