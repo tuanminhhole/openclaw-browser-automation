@@ -193,7 +193,20 @@ function patchDockerFiles(projectDir, logger) {
 }
 
 // â”€â”€ Browser config injection into openclaw.json â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function injectBrowserConfig(projectDir, logger) {
+// Resolve the docker host-gateway IP from /etc/hosts. `extra_hosts` maps
+// host.docker.internal -> host-gateway, so the container's /etc/hosts holds the
+// real gateway IP. Chrome's DevTools endpoint rejects a hostname Host header but
+// accepts an IP, so the CDP URL must use the IP, not the `host.docker.internal` name.
+function resolveHostGatewayIp() {
+  try {
+    const hosts = readFileSync('/etc/hosts', 'utf8');
+    const m = hosts.match(/^\s*(\d{1,3}(?:\.\d{1,3}){3})\s+(?:\S+\s+)*host\.docker\.internal\b/m);
+    if (m) return m[1];
+  } catch (e) {}
+  return null;
+}
+
+function injectBrowserConfig(projectDir, cfg, logger) {
   const configPath = path.join(projectDir, '.openclaw', 'openclaw.json');
   if (!existsSync(configPath)) return;
 
@@ -201,20 +214,42 @@ function injectBrowserConfig(projectDir, logger) {
     const raw = readFileSync(configPath, 'utf8');
     const config = JSON.parse(raw);
 
-    // Only inject if browser config is not already present
-    if (!config.browser) {
-      config.browser = {
-        enabled: true,
-        defaultProfile: 'host-chrome',
-        profiles: {
-          'host-chrome': {
-            cdpUrl: 'http://127.0.0.1:9222',
-            color: '#4285F4',
-          },
-        },
-      };
+    // Desktop hosts (Windows/macOS) drive a REAL host Chrome over CDP via the docker
+    // host-gateway IP. VPS/Linux uses the in-container headless Chromium on 127.0.0.1
+    // started by the entrypoint.
+    const hostOs = resolveHostOs(projectDir, cfg);
+    const useHostChrome = hostOs === 'win' || hostOs === 'macos';
+    const cdpUrl = useHostChrome
+      ? 'http://' + (resolveHostGatewayIp() || '192.168.65.254') + ':9222'
+      : 'http://127.0.0.1:9222';
+
+    let changed = false;
+
+    // 1. Ensure browser control is enabled with a working CDP endpoint. Merge into
+    //    any existing browser config instead of skipping when it already exists
+    //    (a pre-existing config without `enabled:true` leaves browser control off).
+    const browser = config.browser && typeof config.browser === 'object' ? config.browser : {};
+    if (browser.enabled !== true) { browser.enabled = true; changed = true; }
+    if (!browser.defaultProfile) { browser.defaultProfile = 'host-chrome'; changed = true; }
+    const profiles = browser.profiles && typeof browser.profiles === 'object' ? browser.profiles : {};
+    const hostProfile = profiles['host-chrome'] && typeof profiles['host-chrome'] === 'object' ? profiles['host-chrome'] : {};
+    if (hostProfile.cdpUrl !== cdpUrl) { hostProfile.cdpUrl = cdpUrl; changed = true; }
+    if (!hostProfile.color) { hostProfile.color = '#4285F4'; changed = true; }
+    profiles['host-chrome'] = hostProfile;
+    browser.profiles = profiles;
+    config.browser = browser;
+
+    // 2. The bundled `browser` plugin provides the browser-control service this
+    //    plugin depends on. If an allowlist is in use it must include `browser`,
+    //    otherwise browser control stays disabled ("browser control is disabled").
+    if (config.plugins && Array.isArray(config.plugins.allow) && !config.plugins.allow.includes('browser')) {
+      config.plugins.allow.push('browser');
+      changed = true;
+    }
+
+    if (changed) {
       writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-      logger.info('[browser-automation] Injected browser config into openclaw.json.');
+      logger.info(`[browser-automation] Ensured browser config (enabled, cdpUrl=${cdpUrl}) + bundled 'browser' plugin allow.`);
     }
   } catch (err) {
     logger.error(`[browser-automation] Failed to inject browser config: ${err.message}`);
@@ -251,7 +286,7 @@ const plugin = definePluginEntry({
     }
 
     // â”€â”€ Inject browser config into openclaw.json â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    injectBrowserConfig(projectDir, logger);
+    injectBrowserConfig(projectDir, cfg, logger);
 
     // â”€â”€ Patch Docker files if project uses Docker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     patchDockerFiles(projectDir, logger);

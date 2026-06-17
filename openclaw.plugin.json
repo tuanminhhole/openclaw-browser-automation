@@ -2,7 +2,7 @@
   "id": "browser-automation",
   "name": "Browser Automation",
   "description": "Chrome/Chromium CDP browser controller. Supports real Chrome debug mode with headless Chromium fallback.",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true,
