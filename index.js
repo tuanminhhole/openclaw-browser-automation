@@ -237,6 +237,16 @@ function injectBrowserConfig(projectDir, cfg, logger) {
     if (!hostProfile.color) { hostProfile.color = '#4285F4'; changed = true; }
     profiles['host-chrome'] = hostProfile;
     browser.profiles = profiles;
+
+    // 1b. Host Chrome is reached over the docker host-gateway, a PRIVATE IP. The
+    //     browser SSRF policy blocks private targets by default, which surfaces as
+    //     "browser endpoint blocked by policy". Allow private network for host mode.
+    //     (Schema key is dangerouslyAllowPrivateNetwork, not allowPrivateNetwork.)
+    if (useHostChrome) {
+      const ssrf = browser.ssrfPolicy && typeof browser.ssrfPolicy === 'object' ? browser.ssrfPolicy : {};
+      if (ssrf.dangerouslyAllowPrivateNetwork !== true) { ssrf.dangerouslyAllowPrivateNetwork = true; changed = true; }
+      browser.ssrfPolicy = ssrf;
+    }
     config.browser = browser;
 
     // 2. The bundled `browser` plugin provides the browser-control service this
