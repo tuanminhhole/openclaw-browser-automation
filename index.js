@@ -82,7 +82,7 @@ function patchDockerFiles(projectDir, logger) {
       const browserBlock = [
         '# Browser Automation: Playwright + Chromium (browser-automation plugin)',
         '# This layer is cached â€” Chromium is only downloaded on the first build.',
-        'RUN apt-get update && apt-get install -y --no-install-recommends xvfb socat \\',
+        'RUN apt-get update && apt-get install -y --no-install-recommends xvfb \\',
         '    && rm -rf /var/lib/apt/lists/*',
         'RUN npm install -g playwright \\',
         '    && npx playwright install chromium --with-deps \\',
@@ -115,37 +115,55 @@ function patchDockerFiles(projectDir, logger) {
   if (existsSync(entrypointPath)) {
     try {
       let entrypoint = readFileSync(entrypointPath, 'utf8');
+      // Keep a working CDP endpoint on 127.0.0.1:9222 inside the container, always. Which
+      // browser a client PREFERS is decided by the client, not here: browser-tool.js tries
+      // host-gateway:9222 (the operator's real Chrome) before the local one, and
+      // injectBrowserConfig points the native browser tool at the gateway IP on desktop hosts.
+      //
+      // This block used to decide once at boot: host Chrome reachable → forward the port with
+      // `socat`, otherwise start a local Chromium. That broke the moment the operator quit
+      // Chrome — socat kept accepting on 9222 and then hung up mid-handshake ("socket hang
+      // up"), so the local fallback never ran and browsing stayed dead until someone
+      // restarted the container. No forwarding now, and a keeper restarts the local browser
+      // if it dies, so the fallback is always really there.
       const browserEntrypoint = [
-        '# Browser Automation: auto-detect host Chrome or start local headless Chromium',
-        'HOST_OPEN=$(node -e "',
-        "  const net = require('net');",
-        "  const client = net.createConnection({ port: 9222, host: 'host.docker.internal', timeout: 1000 }, () => {",
-        "    console.log('OPEN');",
-        '    client.end();',
-        '  });',
-        "  client.on('error', () => { console.log('CLOSED'); });",
-        "  client.on('timeout', () => { console.log('CLOSED'); client.destroy(); });",
-        '" 2>/dev/null || echo "CLOSED")',
-        '',
-        'if [ "$HOST_OPEN" = "OPEN" ]; then',
-        '  echo "[browser-automation] Host Chrome debug port 9222 detected. Forwarding via socat..."',
-        '  socat TCP-LISTEN:9222,fork,reuseaddr TCP:host.docker.internal:9222 &',
-        'else',
-        '  echo "[browser-automation] No host Chrome detected. Starting local headless Chromium via Xvfb..."',
-        '  Xvfb :99 -screen 0 1280x720x24 > /dev/null 2>&1 &',
-        '  export DISPLAY=:99',
-        '  # Launch Chromium with remote debugging port for CDP connections',
-        '  google-chrome --no-sandbox --disable-gpu --disable-dev-shm-usage \\',
-        '    --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 \\',
+        '# Browser Automation: keep a local headless Chromium serving CDP on 127.0.0.1:9222.',
+        '# Host Chrome is preferred by the clients (host-gateway:9222), not forwarded here.',
+        'ba_cdp_alive() { curl -s -m 2 http://127.0.0.1:9222/json/version >/dev/null 2>&1; }',
+        'ba_chrome_bin() {',
+        '  for candidate in /usr/bin/google-chrome /usr/bin/chromium /usr/bin/chromium-browser; do',
+        '    [ -x "$candidate" ] && echo "$candidate" && return 0',
+        '  done',
+        '  ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome /root/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | head -n 1',
+        '}',
+        'ba_start_local() {',
+        '  chrome_bin="$(ba_chrome_bin || true)"',
+        '  if [ -z "$chrome_bin" ] || [ ! -x "$chrome_bin" ]; then',
+        '    echo "[browser-automation] WARNING: no Chromium in this image; only the operator\'s host Chrome will work."',
+        '    return 1',
+        '  fi',
+        '  [ -e /tmp/.X11-unix/X99 ] || Xvfb :99 -screen 0 1280x720x24 >/dev/null 2>&1 &',
+        '  DISPLAY=:99 "$chrome_bin" --no-sandbox --disable-gpu --disable-dev-shm-usage \\',
+        '    --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 \\',
         '    --headless --disable-background-networking \\',
-        '    --user-data-dir=/tmp/chromium-data > /var/log/chromium-debug.log 2>&1 &',
-        '  sleep 3',
-        '  if curl -s http://127.0.0.1:9222/json/version > /dev/null 2>&1; then',
-        '    echo "[browser-automation] Local headless Chromium started on port 9222."',
-        '  else',
-        '    echo "[browser-automation] WARNING: Chromium failed to start. Browser features may not work."',
+        '    --user-data-dir=/tmp/chromium-data >/var/log/chromium-debug.log 2>&1 &',
+        '  return 0',
+        '}',
+        'if ba_cdp_alive; then',
+        '  echo "[browser-automation] CDP already answering on 127.0.0.1:9222; leaving it alone."',
+        'else',
+        '  echo "[browser-automation] Starting local headless Chromium on 127.0.0.1:9222..."',
+        '  if ba_start_local; then',
+        '    sleep 3',
+        '    if ba_cdp_alive; then',
+        '      echo "[browser-automation] Local headless Chromium started on port 9222."',
+        '    else',
+        '      echo "[browser-automation] WARNING: Chromium did not answer on 9222 yet; see /var/log/chromium-debug.log."',
+        '    fi',
         '  fi',
         'fi',
+        '# Keeper: a crashed local browser used to take browsing down until the next restart.',
+        '( while true; do sleep 60; ba_cdp_alive || ba_start_local || true; done ) >/dev/null 2>&1 &',
       ].join('\n');
 
       // Insert BEFORE the `openclaw gateway run` line
@@ -156,7 +174,7 @@ function patchDockerFiles(projectDir, logger) {
           const after = entrypoint.substring(gwIdx);
           entrypoint = before + `# OPENCLAW:SMART_SEARCH_BROWSER_RUNTIME:START\n${browserEntrypoint}\n# OPENCLAW:SMART_SEARCH_BROWSER_RUNTIME:END\n\n` + after;
           writeFileSync(entrypointPath, entrypoint, 'utf8');
-          logger.info('[browser-automation] Patched entrypoint.sh with browser runtime (socat/Xvfb/Chromium).');
+          logger.info('[browser-automation] Patched entrypoint.sh with browser runtime (local headless Chromium + keeper).');
         }
       } else {
         entrypoint = upsertShellManagedBlock(entrypoint, 'SMART_SEARCH_BROWSER_RUNTIME', browserEntrypoint);

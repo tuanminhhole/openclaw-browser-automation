@@ -20,6 +20,16 @@ wrong-location assets (`plugin-skills/browser-automation`) are removed from work
 
 ## Real Chrome Debug Mode
 
+The starter runs Chrome on a dedicated profile directory (`%LOCALAPPDATA%\OpenClaw\chrome-profile`,
+`~/Library/Application Support/OpenClaw/chrome-profile`, `~/.config/openclaw/chrome-profile`), seeded
+once from the operator's own profile so pages still see the usual cookies, logins and extensions.
+Chrome 136+ refuses `--remote-debugging-port` when `--user-data-dir` is the default profile itself —
+Chrome opens and port 9222 never answers — which is why the copy exists. Point
+`OPENCLAW_CHROME_PROFILE_DIR` anywhere else to override.
+
+If no host Chrome is running, the container keeps its own headless Chromium on `127.0.0.1:9222`, so
+`browser-tool.js` works either way: it prefers the host Chrome and falls back to the local one.
+
 Start Chrome debug on the host machine first:
 
 ```bash

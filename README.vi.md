@@ -20,6 +20,15 @@ Nhung file browser/search cu o root workspace, prompt folder search cu, va asset
 
 ## Dung Chrome that
 
+File mo Chrome chay bang mot profile rieng (`%LOCALAPPDATA%\OpenClaw\chrome-profile`,
+`~/Library/Application Support/OpenClaw/chrome-profile`, `~/.config/openclaw/chrome-profile`), lan dau
+tu chep tu profile that nen trang web van thay cookie/dang nhap/extension quen thuoc. Chrome 136+ TU
+CHOI `--remote-debugging-port` khi `--user-data-dir` la profile mac dinh (Chrome van mo nhung cong 9222
+khong bao gio len) — do la ly do phai chep. Muon dung cho khac thi dat `OPENCLAW_CHROME_PROFILE_DIR`.
+
+Neu host khong co Chrome debug, container tu giu mot Chromium headless o `127.0.0.1:9222` nen
+`browser-tool.js` van chay: uu tien Chrome host, khong co thi dung ban local.
+
 Mo Chrome debug tren may host truoc:
 
 ```bash

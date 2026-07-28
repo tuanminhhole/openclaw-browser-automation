@@ -45,10 +45,31 @@ async function normalizeCdpUrl(url) {
     return url;
 }
 
+// Ask for /json/version first. A port can accept a connection and still be useless — a dead
+// forwarder or a browser that just quit answers the TCP handshake, then drops the websocket
+// upgrade ("socket hang up"). Probing keeps that case cheap and lets the next candidate win.
+async function cdpEndpointAlive(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    try {
+        const res = await fetch(url.replace(/\/+$/, '') + '/json/version', { signal: controller.signal });
+        return res.ok;
+    } catch (_) {
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 async function connectPreferredChrome() {
     let lastError;
     for (const rawUrl of CDP_URLS) {
         const url = await normalizeCdpUrl(rawUrl);
+        if (!(await cdpEndpointAlive(url))) {
+            console.error('[Browser] Skipping CDP endpoint (no /json/version): ' + url);
+            lastError = lastError || new Error('CDP endpoint not answering: ' + url);
+            continue;
+        }
         try {
             const connected = await chromium.connectOverCDP(url, { timeout: 2500 });
             console.error('[Browser] Connected CDP: ' + url);
