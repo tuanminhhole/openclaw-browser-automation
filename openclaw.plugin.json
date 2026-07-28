@@ -2,7 +2,7 @@
   "id": "browser-automation",
   "name": "Browser Automation",
   "description": "Chrome/Chromium CDP browser controller. Supports real Chrome debug mode with headless Chromium fallback.",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true,
@@ -44,8 +44,8 @@
       },
       "patchDocker": {
         "type": "boolean",
-        "description": "Let the plugin patch docker/openclaw/{Dockerfile,entrypoint.sh,docker-compose.yml} - a cached Playwright/Chromium layer, a local headless Chromium on 127.0.0.1:9222, and host.docker.internal for reaching a Chrome on the host. All inside OPENCLAW:SMART_SEARCH_BROWSER* managed blocks, with .bak-browser-automation backups. Set false and the container has no browser of its own.",
-        "default": true
+        "description": "Allow the plugin to patch docker/openclaw/{Dockerfile,entrypoint.sh,docker-compose.yml} - a cached Playwright/Chromium layer, a local headless Chromium on 127.0.0.1:9222, and host.docker.internal for reaching a Chrome on the host. Off by default because editing build and boot files is the broadest thing this plugin can do; turn it on and it writes only inside OPENCLAW:SMART_SEARCH_BROWSER* managed blocks, keeping .bak-browser-automation backups. Projects already patched keep working either way.",
+        "default": false
       },
       "syncWorkspaceSkill": {
         "type": "boolean",
@@ -59,13 +59,13 @@
       },
       "allowPageScripting": {
         "type": "boolean",
-        "description": "Allow the `evaluate` command, which runs arbitrary JavaScript inside the page with the page's own privileges. Set false to refuse it while keeping the rest of the browser tool.",
-        "default": true
+        "description": "Allow the `evaluate` command, which runs arbitrary JavaScript inside the page with the page's own privileges (its session, its storage). Off by default: reading and clicking cover normal browsing, and this is the command that turns a browsing task into arbitrary in-page action.",
+        "default": false
       },
       "allowFileUpload": {
         "type": "boolean",
-        "description": "Allow the `upload` command, which places a file from this machine into a web page's file input (local data leaving for a remote site). Set false to refuse it.",
-        "default": true
+        "description": "Allow the `upload` command, which places a file from this machine into a web page's file input - local data leaving for a remote site. Off by default; turn it on only if the bot genuinely needs to submit files.",
+        "default": false
       }
     },
     "additionalProperties": false

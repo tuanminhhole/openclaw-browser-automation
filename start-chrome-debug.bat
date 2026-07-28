@@ -1,5 +1,5 @@
 @echo off
-REM OPENCLAW_CHROME_PROFILE_V2
+REM OPENCLAW_CHROME_PROFILE_V3
 echo ====== OpenClaw - Chrome ======
 echo.
 
@@ -23,7 +23,14 @@ powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $
 ping -n 3 127.0.0.1 >nul
 
 if not exist "%OPENCLAW_CHROME_PROFILE_DIR%\Default" (
-  echo Lan dau: dang dong Chrome de chep profile - cookie, dang nhap...
+  echo Chua co profile dieu khien - se tao MOI va ban dang nhap 1 lan trong cua so vua mo.
+  echo Muon dung san dang nhap cua Chrome thuong thi dat OPENCLAW_CHROME_SEED_PROFILE=1 roi chay lai.
+  echo Luu y: viec do CHEP cookie, dang nhap, lich su, extension sang profile dieu khien
+  echo va phai DONG het cua so Chrome dang mo de chep.
+)
+
+if not exist "%OPENCLAW_CHROME_PROFILE_DIR%\Default" if "%OPENCLAW_CHROME_SEED_PROFILE%"=="1" (
+  echo Dang dong Chrome de chep profile theo yeu cau cua ban...
   taskkill /F /IM chrome.exe >nul 2>&1
   ping -n 4 127.0.0.1 >nul
   echo Dang chep profile Chrome that sang "%OPENCLAW_CHROME_PROFILE_DIR%" ...
@@ -35,7 +42,7 @@ if not exist "%OPENCLAW_CHROME_PROFILE_DIR%\Default" (
 echo Dang mo Chrome - profile: %OPENCLAW_CHROME_PROFILE_DIR%
 start "" "%CHROME_BIN%" ^
   --remote-debugging-port=9222 ^
-  --remote-allow-origins=* ^
+  --remote-debugging-address=127.0.0.1 ^
   --user-data-dir="%OPENCLAW_CHROME_PROFILE_DIR%" ^
   --profile-directory=Default ^
   --no-first-run ^

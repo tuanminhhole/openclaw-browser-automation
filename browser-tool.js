@@ -62,25 +62,25 @@ async function cdpEndpointAlive(url) {
 }
 
 // `evaluate` runs arbitrary JavaScript in a page that may hold the operator's live session, and
-// `upload` pushes a local file into a remote site. Both are legitimate parts of driving a browser
-// and stay ON by default, but an operator who does not want them can switch them off in
-// plugins.entries['browser-automation'].config without giving up the rest of the tool.
+// `upload` sends a local file to a remote site. Everything else here is reading and clicking; these
+// two are the ones that can quietly turn a browsing task into data extraction or exfiltration, so
+// they are OFF until the operator turns them on in plugins.entries['browser-automation'].config.
 function capabilityEnabled(key) {
     const home = process.env.OPENCLAW_HOME || process.env.OPENCLAW_STATE_DIR;
-    if (!home) return true;
+    if (!home) return false;
     try {
         const cfg = JSON.parse(require('fs').readFileSync(require('path').join(home, 'openclaw.json'), 'utf8'));
         const entries = (cfg.plugins && cfg.plugins.entries) || {};
         const conf = (entries['browser-automation'] || entries['openclaw-browser-automation'] || {}).config || {};
-        return conf[key] !== false;
+        return conf[key] === true;
     } catch (_) {
-        return true;
+        return false;
     }
 }
 
 function requireCapability(key, what) {
     if (capabilityEnabled(key)) return;
-    console.error(`[Browser] ${what} is disabled by the operator (${key}: false in this project's plugin config).`);
+    console.error(`[Browser] ${what} is off. An operator can allow it by setting plugins.entries["browser-automation"].config.${key} = true in .openclaw/openclaw.json — do not ask the agent to work around this.`);
     process.exit(2);
 }
 

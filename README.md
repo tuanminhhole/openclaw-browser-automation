@@ -14,7 +14,7 @@ to `.openclaw/browser-automation-install-report.json` (and logged line by line a
 | What | Where | Switch off with |
 | --- | --- | --- |
 | Enables browser control and points it at a CDP endpoint: `browser.enabled`, `browser.profiles['host-chrome'].cdpUrl`, and — only when that Chrome is a host on a private IP — `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` | `.openclaw/openclaw.json` | `manageBrowserConfig: false` |
-| Adds a cached Playwright/Chromium layer, a local headless Chromium on `127.0.0.1:9222` (loopback only), and `host.docker.internal` so the container can reach a Chrome on the host. All inside `OPENCLAW:SMART_SEARCH_BROWSER*` managed blocks | `docker/openclaw/Dockerfile`, `entrypoint.sh`, `docker-compose.yml` | `patchDocker: false` |
+| **Off by default** (`patchDocker: true` to allow): adds a cached Playwright/Chromium layer, a local headless Chromium on `127.0.0.1:9222` (loopback only), and `host.docker.internal` so the container can reach a Chrome on the host. All inside `OPENCLAW:SMART_SEARCH_BROWSER*` managed blocks | `docker/openclaw/Dockerfile`, `entrypoint.sh`, `docker-compose.yml` | already off — set `patchDocker: true` to opt in |
 | Writes the skill the bot reads: `browser-tool.js`, `SKILL.md`, one `start-chrome-debug.*` for your OS | `<workspace>/skills/browser-automation/` | `syncWorkspaceSkill: false` |
 | Deletes assets **earlier versions of this plugin** left in the wrong place (workspace-root `browser-tool.js` / `BROWSER.md` / `search-tool.js`, `plugin-skills/browser-automation`, `cl-stealth-search`, `openclaw-smart-search`). Only those exact names — nothing you wrote | `<workspace>/` | `cleanupLegacyAssets: false` |
 
@@ -24,17 +24,24 @@ Switches go in `plugins.entries["browser-automation"].config`. To undo everythin
 ## High-impact capabilities
 
 The browser tool drives a real browser, and on a desktop that is **your** Chrome session — your
-cookies and logins. Two commands go beyond reading and clicking, both on by default because they are
-part of what a browser tool is for, both switchable:
+cookies and logins. Two commands go beyond reading and clicking. Both are off until you
+allow them, and neither is needed for ordinary browsing:
 
-- `evaluate "<js>"` — runs arbitrary JavaScript in the page with the page's own privileges. Off with
-  `allowPageScripting: false`.
+- `evaluate "<js>"` — runs arbitrary JavaScript in the page with the page's own privileges. **Off by
+  default**; allow with `allowPageScripting: true`.
 - `upload "<selector>" "<file>"` — puts a local file into a page's file input, so local data can
-  leave for a remote site. Off with `allowFileUpload: false`.
+  leave for a remote site. **Off by default**; allow with `allowFileUpload: true`.
+
+Reading, clicking, filling, screenshots and tab management need no flags — that is ordinary browsing
+and stays available out of the box.
+
+The Chrome starter opens an **empty** automation profile: you sign in once in the window it opens.
+It never duplicates your cookies and logins unless you ask for it with
+`OPENCLAW_CHROME_SEED_PROFILE=1`, and only that path closes your open Chrome windows.
 
 The generated `SKILL.md` tells the agent to prefer the plain read/click commands, to treat every page
-as your account (no signing out, no settings changes, no unrequested submits), and to only upload a
-file you named.
+as your account (no signing out, no settings changes, no unrequested submits), to only upload a file
+you named, and to stop and report rather than route around a capability you left off.
 
 The debug port itself is never exposed off the machine: the in-container Chromium binds
 `127.0.0.1:9222`, and a host Chrome is reached over the Docker host-gateway, not published.
@@ -56,11 +63,14 @@ wrong-location assets (`plugin-skills/browser-automation`) are removed from work
 ## Real Chrome Debug Mode
 
 The starter runs Chrome on a dedicated profile directory (`%LOCALAPPDATA%\OpenClaw\chrome-profile`,
-`~/Library/Application Support/OpenClaw/chrome-profile`, `~/.config/openclaw/chrome-profile`), seeded
-once from the operator's own profile so pages still see the usual cookies, logins and extensions.
-Chrome 136+ refuses `--remote-debugging-port` when `--user-data-dir` is the default profile itself —
-Chrome opens and port 9222 never answers — which is why the copy exists. Point
-`OPENCLAW_CHROME_PROFILE_DIR` anywhere else to override.
+`~/Library/Application Support/OpenClaw/chrome-profile`, `~/.config/openclaw/chrome-profile`) — a
+separate directory is required because Chrome 136+ refuses `--remote-debugging-port` when
+`--user-data-dir` is the default profile itself (Chrome opens and port 9222 never answers).
+
+That profile starts empty and you sign in once. If you would rather reuse the logins you already
+have, run the starter with `OPENCLAW_CHROME_SEED_PROFILE=1` — that copies cookies, logins, history
+and extensions into the automation profile, and closes your open Chrome windows to do it. Point
+`OPENCLAW_CHROME_PROFILE_DIR` elsewhere to use a different directory.
 
 If no host Chrome is running, the container keeps its own headless Chromium on `127.0.0.1:9222`, so
 `browser-tool.js` works either way: it prefers the host Chrome and falls back to the local one.

@@ -24,10 +24,13 @@ const PLUGIN_ID = 'browser-automation';
 // Chromium and a route to the host — but none of that should happen invisibly or irreversibly.
 const EFFECT_DEFAULTS = {
   // Write browser.profiles['host-chrome'].cdpUrl (+ enable browser control) into openclaw.json.
+  // On by default: without a CDP endpoint in the config the plugin cannot do its one job, the
+  // write is confined to the `browser` section, and the original is backed up.
   manageBrowserConfig: true,
-  // Add the Chromium layer to the Dockerfile, the browser runtime block to entrypoint.sh, and
-  // host.docker.internal to docker-compose.yml. Docker projects only.
-  patchDocker: true,
+  // Editing the files that build and boot the container is the broadest thing this plugin can
+  // do, so it waits to be asked. Already-patched projects keep working — the managed blocks
+  // stay where they are; this only governs writing them in the first place.
+  patchDocker: false,
   // Write skills/browser-automation/{browser-tool.js,SKILL.md,start-chrome-debug.*} per workspace.
   syncWorkspaceSkill: true,
   // Delete assets earlier versions of THIS plugin put in the wrong place (see docs).
@@ -410,8 +413,16 @@ const plugin = definePluginEntry({
     // â”€â”€ Patch Docker files if project uses Docker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if (effects.patchDocker) {
       patchDockerFiles(projectDir, logger, changes);
-    } else {
-      logger.info('[browser-automation] patchDocker=false: leaving Dockerfile/entrypoint.sh/docker-compose.yml untouched. The container then has no Chromium and no route to a host Chrome.');
+    } else if (existsSync(path.join(projectDir, 'docker', 'openclaw', 'Dockerfile'))) {
+      const patched = (() => {
+        try {
+          return readFileSync(path.join(projectDir, 'docker', 'openclaw', 'entrypoint.sh'), 'utf8')
+            .includes('OPENCLAW:SMART_SEARCH_BROWSER_RUNTIME:START');
+        } catch (_) { return false; }
+      })();
+      logger.info(patched
+        ? '[browser-automation] patchDocker=false: this project is already set up, leaving the Docker files as they are.'
+        : '[browser-automation] patchDocker=false: this Docker project has no browser yet. Set plugins.entries["browser-automation"].config.patchDocker = true to let the plugin add Chromium and the host route (backups are kept), or add them by hand. Until then, browsing needs a Chrome the operator starts on the host.');
     }
 
     async function syncWorkspaceAssets() {
@@ -526,8 +537,9 @@ const plugin = definePluginEntry({
             '- Windows: run `skills/browser-automation/start-chrome-debug.bat`',
             '- macOS/Linux: run `./skills/browser-automation/start-chrome-debug.sh`',
             '',
-            'That script runs a dedicated profile copied once from the real one (Chrome 136+ refuses the',
-            'debug port on the default profile directory), so the operator\'s everyday Chrome stays open.',
+            'That script runs a dedicated profile — empty on first run, so the operator signs in once in',
+            'the window that opens (Chrome 136+ refuses the debug port on the default profile directory).',
+            'Their everyday Chrome stays open and untouched.',
             '',
             '## Browser Commands',
             '',
@@ -550,14 +562,15 @@ const plugin = definePluginEntry({
             '  `select "<selector>" "<value>"`, `scroll [px]`, `wait <ms|selector>`, `resize <w> <h>`',
             '- `new_tab [url]`, `switch_tab <index>`, `close_tab [index]`',
             '',
-            'High-impact — use only when the task genuinely needs it, and say so in your reply:',
+            'Off unless the operator turned them on — if one refuses, report that and stop, do not look',
+            'for another way to do the same thing:',
             '',
             '- `evaluate "<js>"`: runs arbitrary JavaScript in the page, with the page\'s full privileges',
-            '  (its session, its localStorage). Prefer `get_text`/`get_links`/`click` when they suffice.',
-            '  Operators can switch it off with `allowPageScripting: false`.',
+            '  (its session, its localStorage). Needs `allowPageScripting: true`. Prefer',
+            '  `get_text`/`get_links`/`click`, which cover normal browsing.',
             '- `upload "<selector>" "<file>"`: puts a file from this machine into a web page\'s file input,',
-            '  i.e. it can send local data to a remote site. Only upload a file the operator named.',
-            '  Operators can switch it off with `allowFileUpload: false`.',
+            '  i.e. it sends local data to a remote site. Needs `allowFileUpload: true`, and only ever',
+            '  upload a file the operator named in the request.',
             '',
             '## What this plugin changed in the project',
             '',
@@ -566,8 +579,9 @@ const plugin = definePluginEntry({
             '',
             '- wrote `browser.enabled`, `browser.profiles[\'host-chrome\'].cdpUrl` and, for a host Chrome on a',
             '  private IP, `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` into `.openclaw/openclaw.json`',
-            '- on Docker projects: added a Playwright/Chromium layer to the `Dockerfile`, a local headless',
-            '  Chromium block to `entrypoint.sh`, and `host.docker.internal` to `docker-compose.yml`',
+            '- on Docker projects, only when the operator set `patchDocker: true`: a Playwright/Chromium',
+            '  layer in the `Dockerfile`, a local headless Chromium block in `entrypoint.sh`, and',
+            '  `host.docker.internal` in `docker-compose.yml`',
             '- wrote this skill folder, and removed assets earlier versions of this plugin left elsewhere',
             '',
             'Do not use `search-tool.js`; this plugin does not provide search. Use `web_search` for search and this browser tool only when a rendered browser is needed.',

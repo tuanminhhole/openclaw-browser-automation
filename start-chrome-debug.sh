@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# OPENCLAW_CHROME_PROFILE_V2
+# OPENCLAW_CHROME_PROFILE_V3
 # ====== OpenClaw - Chrome (Mac/Linux) ======
 set -e
 echo "====== OpenClaw - Chrome ======"
@@ -25,7 +25,8 @@ if [ -z "$CHROME_BIN" ] || { [ ! -f "$CHROME_BIN" ] && [ ! -x "$CHROME_BIN" ]; }
 fi
 
 # Chrome 136+ refuses --remote-debugging-port on the default profile directory, so run a
-# dedicated one seeded from the real profile (keeps cookies, logins, history, extensions).
+# dedicated one. It starts empty: copying the real profile duplicates cookies and logins,
+# so it only happens when the operator asks with OPENCLAW_CHROME_SEED_PROFILE=1.
 : "${OPENCLAW_CHROME_PROFILE_DIR:=$DEFAULT_DEBUG_PROFILE}"
 
 echo "Using: $CHROME_BIN"
@@ -33,21 +34,28 @@ echo "Killing existing Chrome debug instances..."
 pkill -f -- "--remote-debugging-port=9222" 2>/dev/null || true
 sleep 2
 
-if [ ! -d "$OPENCLAW_CHROME_PROFILE_DIR/Default" ] && [ -d "$REAL_PROFILE/Default" ]; then
-  echo "First run: copying the real Chrome profile into $OPENCLAW_CHROME_PROFILE_DIR ..."
-  mkdir -p "$OPENCLAW_CHROME_PROFILE_DIR/Default"
-  cp -R "$REAL_PROFILE/Default/." "$OPENCLAW_CHROME_PROFILE_DIR/Default/" 2>/dev/null || true
-  cp -f "$REAL_PROFILE/Local State" "$OPENCLAW_CHROME_PROFILE_DIR/Local State" 2>/dev/null || true
-  for junk in "Cache" "Code Cache" "GPUCache" "GrShaderCache" "ShaderCache" "DawnCache" "DawnGraphiteCache" "DawnWebGPUCache" "Service Worker" "component_crx_cache" "extensions_crx_cache" "optimization_guide_model_store" "blob_storage"; do
-    rm -rf "$OPENCLAW_CHROME_PROFILE_DIR/Default/$junk"
-  done
+if [ ! -d "$OPENCLAW_CHROME_PROFILE_DIR/Default" ]; then
+  if [ "$OPENCLAW_CHROME_SEED_PROFILE" = "1" ] && [ -d "$REAL_PROFILE/Default" ]; then
+    echo "Copying your real Chrome profile into $OPENCLAW_CHROME_PROFILE_DIR as requested"
+    echo "(cookies, logins, history and extensions are duplicated into that directory)."
+    mkdir -p "$OPENCLAW_CHROME_PROFILE_DIR/Default"
+    cp -R "$REAL_PROFILE/Default/." "$OPENCLAW_CHROME_PROFILE_DIR/Default/" 2>/dev/null || true
+    cp -f "$REAL_PROFILE/Local State" "$OPENCLAW_CHROME_PROFILE_DIR/Local State" 2>/dev/null || true
+    for junk in "Cache" "Code Cache" "GPUCache" "GrShaderCache" "ShaderCache" "DawnCache" "DawnGraphiteCache" "DawnWebGPUCache" "Service Worker" "component_crx_cache" "extensions_crx_cache" "optimization_guide_model_store" "blob_storage"; do
+      rm -rf "$OPENCLAW_CHROME_PROFILE_DIR/Default/$junk"
+    done
+  else
+    echo "Starting a clean automation profile - sign in once in the window that opens."
+    echo "To reuse your existing logins instead: OPENCLAW_CHROME_SEED_PROFILE=1 $0"
+    echo "(that copies cookies, logins, history and extensions into the automation profile)."
+  fi
 fi
 mkdir -p "$OPENCLAW_CHROME_PROFILE_DIR"
 
 echo "Starting Chrome (profile: $OPENCLAW_CHROME_PROFILE_DIR)..."
 "$CHROME_BIN" \
   --remote-debugging-port=9222 \
-  --remote-allow-origins=* \
+  --remote-debugging-address=127.0.0.1 \
   --user-data-dir="$OPENCLAW_CHROME_PROFILE_DIR" \
   --profile-directory=Default \
   --no-first-run \
