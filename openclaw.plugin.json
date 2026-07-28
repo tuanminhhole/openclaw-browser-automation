@@ -2,7 +2,7 @@
   "id": "browser-automation",
   "name": "Browser Automation",
   "description": "Chrome/Chromium CDP browser controller. Supports real Chrome debug mode with headless Chromium fallback.",
-  "version": "1.3.8",
+  "version": "1.4.0",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true,
@@ -36,6 +36,36 @@
           "vps"
         ],
         "default": "win"
+      },
+      "manageBrowserConfig": {
+        "type": "boolean",
+        "description": "Let the plugin write the CDP endpoint into .openclaw/openclaw.json (browser.enabled, browser.profiles['host-chrome'].cdpUrl, and browser.ssrfPolicy.dangerouslyAllowPrivateNetwork when the host Chrome sits on a private IP). Set false to manage that config yourself; the original is saved as openclaw.json.bak-browser-automation.",
+        "default": true
+      },
+      "patchDocker": {
+        "type": "boolean",
+        "description": "Let the plugin patch docker/openclaw/{Dockerfile,entrypoint.sh,docker-compose.yml} - a cached Playwright/Chromium layer, a local headless Chromium on 127.0.0.1:9222, and host.docker.internal for reaching a Chrome on the host. All inside OPENCLAW:SMART_SEARCH_BROWSER* managed blocks, with .bak-browser-automation backups. Set false and the container has no browser of its own.",
+        "default": true
+      },
+      "syncWorkspaceSkill": {
+        "type": "boolean",
+        "description": "Write skills/browser-automation/{browser-tool.js,SKILL.md,start-chrome-debug.*} into every agent workspace on startup. Set false to manage those files yourself.",
+        "default": true
+      },
+      "cleanupLegacyAssets": {
+        "type": "boolean",
+        "description": "Delete assets earlier versions of THIS plugin wrote to the wrong place (workspace-root browser-tool.js/BROWSER.md/search-tool.js, plugin-skills/browser-automation, cl-stealth-search, openclaw-smart-search). Only those exact names are removed and each one is listed in the install report.",
+        "default": true
+      },
+      "allowPageScripting": {
+        "type": "boolean",
+        "description": "Allow the `evaluate` command, which runs arbitrary JavaScript inside the page with the page's own privileges. Set false to refuse it while keeping the rest of the browser tool.",
+        "default": true
+      },
+      "allowFileUpload": {
+        "type": "boolean",
+        "description": "Allow the `upload` command, which places a file from this machine into a web page's file input (local data leaving for a remote site). Set false to refuse it.",
+        "default": true
       }
     },
     "additionalProperties": false

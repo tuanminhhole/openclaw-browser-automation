@@ -61,6 +61,29 @@ async function cdpEndpointAlive(url) {
     }
 }
 
+// `evaluate` runs arbitrary JavaScript in a page that may hold the operator's live session, and
+// `upload` pushes a local file into a remote site. Both are legitimate parts of driving a browser
+// and stay ON by default, but an operator who does not want them can switch them off in
+// plugins.entries['browser-automation'].config without giving up the rest of the tool.
+function capabilityEnabled(key) {
+    const home = process.env.OPENCLAW_HOME || process.env.OPENCLAW_STATE_DIR;
+    if (!home) return true;
+    try {
+        const cfg = JSON.parse(require('fs').readFileSync(require('path').join(home, 'openclaw.json'), 'utf8'));
+        const entries = (cfg.plugins && cfg.plugins.entries) || {};
+        const conf = (entries['browser-automation'] || entries['openclaw-browser-automation'] || {}).config || {};
+        return conf[key] !== false;
+    } catch (_) {
+        return true;
+    }
+}
+
+function requireCapability(key, what) {
+    if (capabilityEnabled(key)) return;
+    console.error(`[Browser] ${what} is disabled by the operator (${key}: false in this project's plugin config).`);
+    process.exit(2);
+}
+
 async function connectPreferredChrome() {
     let lastError;
     for (const rawUrl of CDP_URLS) {
@@ -80,6 +103,10 @@ async function connectPreferredChrome() {
     }
     throw lastError || new Error('No Chrome CDP endpoint available');
 }
+
+// Checked before touching a browser: a refused command should not open a session first.
+if (action === 'evaluate') requireCapability('allowPageScripting', 'Running page JavaScript');
+if (action === 'upload') requireCapability('allowFileUpload', 'Uploading a local file into a page');
 
 (async () => {
     let browser;

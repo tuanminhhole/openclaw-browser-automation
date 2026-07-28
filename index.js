@@ -18,6 +18,43 @@ if (_homeBasename === 'npm' || _homeBasename === 'node_modules') {
 
 const PLUGIN_ID = 'browser-automation';
 
+// Everything this plugin changes outside its own folder is listed here, switchable, backed up
+// before the first write, and reported to the operator afterwards. A browser controller has to
+// touch the runtime it drives — the CDP endpoint has to be in openclaw.json, the container needs
+// Chromium and a route to the host — but none of that should happen invisibly or irreversibly.
+const EFFECT_DEFAULTS = {
+  // Write browser.profiles['host-chrome'].cdpUrl (+ enable browser control) into openclaw.json.
+  manageBrowserConfig: true,
+  // Add the Chromium layer to the Dockerfile, the browser runtime block to entrypoint.sh, and
+  // host.docker.internal to docker-compose.yml. Docker projects only.
+  patchDocker: true,
+  // Write skills/browser-automation/{browser-tool.js,SKILL.md,start-chrome-debug.*} per workspace.
+  syncWorkspaceSkill: true,
+  // Delete assets earlier versions of THIS plugin put in the wrong place (see docs).
+  cleanupLegacyAssets: true,
+};
+
+function resolvePluginConfig(cfg = {}) {
+  const entries = cfg.plugins?.entries || {};
+  const raw = entries[PLUGIN_ID]?.config || entries['openclaw-browser-automation']?.config || {};
+  const effects = { ...EFFECT_DEFAULTS };
+  for (const key of Object.keys(EFFECT_DEFAULTS)) {
+    if (typeof raw[key] === 'boolean') effects[key] = raw[key];
+  }
+  return { raw, effects };
+}
+
+// One `.bak-browser-automation` per file, written before the first change and never overwritten,
+// so the operator always has the pre-plugin version to go back to.
+function backupOnce(filePath, changes) {
+  const backup = `${filePath}.bak-browser-automation`;
+  if (!existsSync(filePath) || existsSync(backup)) return;
+  try {
+    writeFileSync(backup, readFileSync(filePath, 'utf8'), 'utf8');
+    changes.push({ action: 'backup', path: backup });
+  } catch (_) {}
+}
+
 function normalizeHostOs(value = '') {
   const v = String(value || '').trim().toLowerCase();
   if (['win', 'windows', 'win32'].includes(v)) return 'win';
@@ -71,7 +108,7 @@ function upsertShellManagedBlock(content, blockId, blockContent) {
 // Patches Dockerfile, entrypoint.sh, docker-compose.yml to add browser deps.
 // Uses managed blocks so it's idempotent â€” safe to run on every startup.
 // Playwright/Chromium install is a separate Docker layer so it's cached across rebuilds.
-function patchDockerFiles(projectDir, logger) {
+function patchDockerFiles(projectDir, logger, changes) {
   const dockerDir = path.join(projectDir, 'docker', 'openclaw');
 
   // â”€â”€ 1. Patch Dockerfile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -96,13 +133,17 @@ function patchDockerFiles(projectDir, logger) {
           const before = dockerfile.substring(0, copyIdx);
           const after = dockerfile.substring(copyIdx);
           dockerfile = before + `# OPENCLAW:SMART_SEARCH_BROWSER:START\n${browserBlock}\n# OPENCLAW:SMART_SEARCH_BROWSER:END\n\n` + after;
+          backupOnce(dockerfilePath, changes);
           writeFileSync(dockerfilePath, dockerfile, 'utf8');
+          changes.push({ action: 'patch', path: dockerfilePath, detail: 'added Playwright/Chromium layer (managed block SMART_SEARCH_BROWSER)' });
           logger.info('[browser-automation] Patched Dockerfile with browser deps (Playwright + Chromium cached layer).');
         }
       } else {
         // Update existing block
         dockerfile = upsertShellManagedBlock(dockerfile, 'SMART_SEARCH_BROWSER', browserBlock);
+        backupOnce(dockerfilePath, changes);
         writeFileSync(dockerfilePath, dockerfile, 'utf8');
+        changes.push({ action: 'patch', path: dockerfilePath, detail: 'updated managed block SMART_SEARCH_BROWSER' });
         logger.info('[browser-automation] Updated existing browser block in Dockerfile.');
       }
     } catch (err) {
@@ -173,12 +214,16 @@ function patchDockerFiles(projectDir, logger) {
           const before = entrypoint.substring(0, gwIdx);
           const after = entrypoint.substring(gwIdx);
           entrypoint = before + `# OPENCLAW:SMART_SEARCH_BROWSER_RUNTIME:START\n${browserEntrypoint}\n# OPENCLAW:SMART_SEARCH_BROWSER_RUNTIME:END\n\n` + after;
+          backupOnce(entrypointPath, changes);
           writeFileSync(entrypointPath, entrypoint, 'utf8');
+          changes.push({ action: 'patch', path: entrypointPath, detail: 'added local headless Chromium runtime (managed block SMART_SEARCH_BROWSER_RUNTIME)' });
           logger.info('[browser-automation] Patched entrypoint.sh with browser runtime (local headless Chromium + keeper).');
         }
       } else {
         entrypoint = upsertShellManagedBlock(entrypoint, 'SMART_SEARCH_BROWSER_RUNTIME', browserEntrypoint);
+        backupOnce(entrypointPath, changes);
         writeFileSync(entrypointPath, entrypoint, 'utf8');
+        changes.push({ action: 'patch', path: entrypointPath, detail: 'updated managed block SMART_SEARCH_BROWSER_RUNTIME' });
         logger.info('[browser-automation] Updated existing browser runtime block in entrypoint.sh.');
       }
     } catch (err) {
@@ -200,7 +245,9 @@ function patchDockerFiles(projectDir, logger) {
           const after = compose.substring(volumesIdx);
           const extraHosts = '    extra_hosts:\n      - "host.docker.internal:host-gateway"\n';
           compose = before + extraHosts + after;
+          backupOnce(composePath, changes);
           writeFileSync(composePath, compose, 'utf8');
+          changes.push({ action: 'patch', path: composePath, detail: 'added extra_hosts host.docker.internal:host-gateway' });
           logger.info('[browser-automation] Added extra_hosts to docker-compose.yml for Chrome CDP access.');
         }
       }
@@ -224,7 +271,7 @@ function resolveHostGatewayIp() {
   return null;
 }
 
-function injectBrowserConfig(projectDir, cfg, logger) {
+function injectBrowserConfig(projectDir, cfg, logger, changes) {
   const configPath = path.join(projectDir, '.openclaw', 'openclaw.json');
   if (!existsSync(configPath)) return;
 
@@ -276,11 +323,46 @@ function injectBrowserConfig(projectDir, cfg, logger) {
     }
 
     if (changed) {
+      backupOnce(configPath, changes);
       writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+      changes.push({ action: 'patch', path: configPath, detail: `browser.enabled=true, browser.profiles['host-chrome'].cdpUrl=${cdpUrl}${useHostChrome ? ', browser.ssrfPolicy.dangerouslyAllowPrivateNetwork=true (host Chrome is on a private IP)' : ''}` });
       logger.info(`[browser-automation] Ensured browser config (enabled, cdpUrl=${cdpUrl}) + bundled 'browser' plugin allow.`);
     }
   } catch (err) {
     logger.error(`[browser-automation] Failed to inject browser config: ${err.message}`);
+  }
+}
+
+// Say out loud what was changed, and leave the same list on disk. Without this the operator has
+// to diff their own project to find out that a plugin rewrote openclaw.json and the Dockerfile.
+function writeInstallReport(projectDir, effects, changes, logger) {
+  if (!changes.length) {
+    logger.info('[browser-automation] Nothing to change — project already set up for browsing.');
+    return;
+  }
+  const patched = changes.filter((c) => c.action === 'patch');
+  const removed = changes.filter((c) => c.action === 'remove-legacy');
+  const skills = changes.filter((c) => c.action === 'write-skill');
+  logger.info(`[browser-automation] Applied ${changes.length} change(s) to this project:`);
+  for (const c of patched) logger.info(`  • changed ${c.path} — ${c.detail}`);
+  for (const c of skills) logger.info(`  • wrote skill ${c.path} (${c.detail})`);
+  for (const c of removed) logger.info(`  • removed stale plugin asset ${c.path}`);
+  logger.info('  • originals saved next to each file as *.bak-browser-automation');
+  logger.info('  • turn any of this off with plugins.entries["browser-automation"].config: manageBrowserConfig / patchDocker / syncWorkspaceSkill / cleanupLegacyAssets');
+
+  const reportPath = path.join(projectDir, '.openclaw', 'browser-automation-install-report.json');
+  try {
+    mkdirSync(path.dirname(reportPath), { recursive: true });
+    writeFileSync(reportPath, JSON.stringify({
+      plugin: PLUGIN_ID,
+      writtenAt: new Date().toISOString(),
+      effects,
+      changes,
+      revert: 'Restore each *.bak-browser-automation file over the original, or delete the OPENCLAW:SMART_SEARCH_BROWSER* managed blocks from Dockerfile/entrypoint.sh.',
+    }, null, 2), 'utf8');
+    logger.info(`[browser-automation] Full report: ${reportPath}`);
+  } catch (err) {
+    logger.error(`[browser-automation] Could not write the install report: ${err.message}`);
   }
 }
 
@@ -306,6 +388,11 @@ const plugin = definePluginEntry({
     } catch (_) {}
 
     const cfg = api.config;
+    const { effects } = resolvePluginConfig(cfg);
+    // Every path written outside the plugin folder ends up in here and then in the install
+    // report, so "what did this plugin change on my machine" has an answer that is not "read
+    // the source".
+    const changes = [];
 
     // Resolve project directory and workspace directories for all agents
     let projectDir = path.resolve(_openclawHome, '..');
@@ -314,10 +401,18 @@ const plugin = definePluginEntry({
     }
 
     // â”€â”€ Inject browser config into openclaw.json â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    injectBrowserConfig(projectDir, cfg, logger);
+    if (effects.manageBrowserConfig) {
+      injectBrowserConfig(projectDir, cfg, logger, changes);
+    } else {
+      logger.info("[browser-automation] manageBrowserConfig=false: leaving openclaw.json untouched. Browsing needs browser.profiles['host-chrome'].cdpUrl set by hand.");
+    }
 
     // â”€â”€ Patch Docker files if project uses Docker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    patchDockerFiles(projectDir, logger);
+    if (effects.patchDocker) {
+      patchDockerFiles(projectDir, logger, changes);
+    } else {
+      logger.info('[browser-automation] patchDocker=false: leaving Dockerfile/entrypoint.sh/docker-compose.yml untouched. The container then has no Chromium and no route to a host Chrome.');
+    }
 
     async function syncWorkspaceAssets() {
       try {
@@ -362,16 +457,26 @@ const plugin = definePluginEntry({
             } catch(e) {}
           }
 
-          // 3. Remove legacy / wrong-location assets written by earlier plugin versions.
-          await fs.rm(path.join(workspacePath, 'plugin-skills', 'browser-automation'), { recursive: true, force: true }).catch(() => {});
-          await fs.rm(path.join(projectDir, '.openclaw', 'plugin-skills', 'browser-automation'), { recursive: true, force: true }).catch(() => {});
-          const legacySearchTool = ['search', 'tool.js'].join('-');
-          await fs.rm(path.join(workspacePath, legacySearchTool), { force: true }).catch(() => {});
-          await fs.rm(path.join(workspacePath, 'browser-tool.js'), { force: true }).catch(() => {});
-          await fs.rm(path.join(workspacePath, 'BROWSER.md'), { force: true }).catch(() => {});
-          for (const cDir of ['cl-stealth-search', 'openclaw-smart-search']) {
-            await fs.rm(path.join(workspacePath, 'plugin-skills', cDir), { recursive: true, force: true }).catch(() => {});
-            await fs.rm(path.join(workspacePath, 'skills', cDir), { recursive: true, force: true }).catch(() => {});
+          // 3. Remove assets that earlier versions of THIS plugin wrote to the wrong place.
+          //    Deletions are limited to those exact names — nothing the operator authored is
+          //    touched — and each one is recorded in the install report.
+          if (effects.cleanupLegacyAssets) {
+            const legacyPaths = [
+              path.join(workspacePath, 'plugin-skills', 'browser-automation'),
+              path.join(projectDir, '.openclaw', 'plugin-skills', 'browser-automation'),
+              path.join(workspacePath, ['search', 'tool.js'].join('-')),
+              path.join(workspacePath, 'browser-tool.js'),
+              path.join(workspacePath, 'BROWSER.md'),
+              ...['cl-stealth-search', 'openclaw-smart-search'].flatMap((cDir) => [
+                path.join(workspacePath, 'plugin-skills', cDir),
+                path.join(workspacePath, 'skills', cDir),
+              ]),
+            ];
+            for (const legacyPath of legacyPaths) {
+              if (!existsSync(legacyPath)) continue;
+              await fs.rm(legacyPath, { recursive: true, force: true }).catch(() => {});
+              changes.push({ action: 'remove-legacy', path: legacyPath });
+            }
           }
 
           // 4. Patch TOOLS.md
@@ -392,7 +497,7 @@ const plugin = definePluginEntry({
           const skillMdContent = [
             '---',
             'name: browser-automation',
-            'description: Use when controlling a real web page with the browser-tool CLI - open pages, read rendered text/links, click, fill forms, screenshot, manage tabs. For plain web search use the built-in web_search instead.',
+            'description: Use when controlling a real web page with the browser-tool CLI - open pages, read rendered text/links, click, fill forms, run page JavaScript, upload a file into a page, screenshot, manage tabs. For plain web search use the built-in web_search instead.',
             'user-invocable: false',
             '---',
             '',
@@ -405,32 +510,72 @@ const plugin = definePluginEntry({
             '- `node skills/browser-automation/browser-tool.js status`',
             '- or `cd skills/browser-automation && node browser-tool.js status`',
             '',
-            '## Chrome Debug Mode',
+            '## What the browser is',
             '',
-            'On a desktop machine, start real Chrome in debug mode before asking the bot to browse:',
+            'The tool does not launch a browser: it attaches over CDP to one that is already running,',
+            'preferring the operator\'s real Chrome on the host (`host-gateway:9222`) and falling back to',
+            'a headless Chromium inside the container on `127.0.0.1:9222`.',
+            '',
+            'When it attaches to the host Chrome it is driving **the operator\'s own browser session** —',
+            'their cookies, their logins, their open tabs. Treat every page as the operator\'s account:',
+            'read and navigate freely, but do not sign anything out, change account settings, delete data,',
+            'confirm payments or submit forms that were not asked for.',
+            '',
+            'On a desktop machine, start Chrome with the debug port before asking the bot to browse:',
             '',
             '- Windows: run `skills/browser-automation/start-chrome-debug.bat`',
             '- macOS/Linux: run `./skills/browser-automation/start-chrome-debug.sh`',
             '',
-            'The tool will try real host Chrome first. If Chrome debug is not available, it falls back to local headless Chromium, which is suitable for VPS/server use.',
+            'That script runs a dedicated profile copied once from the real one (Chrome 136+ refuses the',
+            'debug port on the default profile directory), so the operator\'s everyday Chrome stays open.',
             '',
             '## Browser Commands',
             '',
-            '- `node skills/browser-automation/browser-tool.js status`: check the active browser/tab',
-            '- `node skills/browser-automation/browser-tool.js open <url>`: open a page',
-            '- `node skills/browser-automation/browser-tool.js get_text [max_chars]`: read rendered page text',
-            '- `node skills/browser-automation/browser-tool.js get_links [filter]`: list links',
-            '- `node skills/browser-automation/browser-tool.js click "<selector>"`: click an element',
-            '- `node skills/browser-automation/browser-tool.js fill "<selector>" "<text>"`: fill an input',
-            '- `node skills/browser-automation/browser-tool.js scroll [px]`: scroll the page',
-            '- `node skills/browser-automation/browser-tool.js screenshot [path]`: capture the viewport',
-            '- `node skills/browser-automation/browser-tool.js tabs`: list tabs',
+            'Reading:',
+            '',
+            '- `status`: active browser/tab',
+            '- `open <url>`: open a page',
+            '- `get_url`: current URL',
+            '- `get_text [max_chars]`: rendered page text',
+            '- `get_links [filter]`: links on the page',
+            '- `get_posts`: repeated feed/list items',
+            '- `console`: collect console output for ~2s',
+            '- `screenshot [path]` / `screenshot_full [path]`: viewport / full page',
+            '- `pdf [path]`: print the page to PDF',
+            '- `tabs`: list tabs',
+            '',
+            'Interacting:',
+            '',
+            '- `click "<selector>"`, `fill "<selector>" "<text>"`, `press "<key>"`, `hover "<selector>"`,',
+            '  `select "<selector>" "<value>"`, `scroll [px]`, `wait <ms|selector>`, `resize <w> <h>`',
+            '- `new_tab [url]`, `switch_tab <index>`, `close_tab [index]`',
+            '',
+            'High-impact — use only when the task genuinely needs it, and say so in your reply:',
+            '',
+            '- `evaluate "<js>"`: runs arbitrary JavaScript in the page, with the page\'s full privileges',
+            '  (its session, its localStorage). Prefer `get_text`/`get_links`/`click` when they suffice.',
+            '  Operators can switch it off with `allowPageScripting: false`.',
+            '- `upload "<selector>" "<file>"`: puts a file from this machine into a web page\'s file input,',
+            '  i.e. it can send local data to a remote site. Only upload a file the operator named.',
+            '  Operators can switch it off with `allowFileUpload: false`.',
+            '',
+            '## What this plugin changed in the project',
+            '',
+            'For transparency (all of it is switchable and backed up — see',
+            '`.openclaw/browser-automation-install-report.json`):',
+            '',
+            '- wrote `browser.enabled`, `browser.profiles[\'host-chrome\'].cdpUrl` and, for a host Chrome on a',
+            '  private IP, `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` into `.openclaw/openclaw.json`',
+            '- on Docker projects: added a Playwright/Chromium layer to the `Dockerfile`, a local headless',
+            '  Chromium block to `entrypoint.sh`, and `host.docker.internal` to `docker-compose.yml`',
+            '- wrote this skill folder, and removed assets earlier versions of this plugin left elsewhere',
             '',
             'Do not use `search-tool.js`; this plugin does not provide search. Use `web_search` for search and this browser tool only when a rendered browser is needed.',
             '',
           ].join('\n');
           await fs.writeFile(path.join(skillDir, 'SKILL.md'), skillMdContent, 'utf8');
           await fs.rm(path.join(skillDir, 'BROWSER.md'), { force: true }).catch(() => {});
+          changes.push({ action: 'write-skill', path: skillDir, detail: `browser-tool.js, SKILL.md, ${keepScript}` });
 
           logger.info(`[browser-automation] Synchronized skill into skills/browser-automation for agent: ${a.id}`);
         }
@@ -440,9 +585,12 @@ const plugin = definePluginEntry({
     }
 
     // Run sync asynchronously on startup
-    syncWorkspaceAssets().catch((err) => {
-      logger.error(`[browser-automation] Startup sync failed: ${err.message}`);
-    });
+    const synced = effects.syncWorkspaceSkill
+      ? syncWorkspaceAssets().catch((err) => {
+        logger.error(`[browser-automation] Startup sync failed: ${err.message}`);
+      })
+      : Promise.resolve(logger.info('[browser-automation] syncWorkspaceSkill=false: not writing skills/browser-automation into any workspace.'));
+    synced.then(() => writeInstallReport(projectDir, effects, changes, logger));
   }
 });
 
