@@ -1,78 +1,63 @@
-﻿import { execSync } from 'node:child_process';
+/**
+ * ClawHub release for openclaw-browser-automation.
+ *
+ * Publishes from the GitHub repo, not from a local build folder. A local-folder publish with
+ * --source-commit is what shipped 1.3.7: ClawHub accepted it and scanned it clean, but the
+ * release never became resolvable ("Version not found") and the `latest` tag never moved, so
+ * nobody could install it. Publishing the pushed commit — the same way the other openclaw-*
+ * plugins do it — is the path that actually lands.
+ *
+ * Preconditions checked below, because both of them silently publish the wrong thing:
+ *   - clean working tree (ClawHub reads GitHub, not your disk)
+ *   - the current commit is pushed to origin/main
+ */
+import { execSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO = 'tuanminhhole/openclaw-browser-automation';
+
+function git(args) {
+  return execSync(`git ${args}`, { cwd: __dirname, encoding: 'utf8' }).trim();
+}
 
 async function main() {
-  const srcDir = __dirname;
-  const buildDir = path.join(srcDir, '..', 'openclaw-browser-automation-build');
-  const pkgPath = path.join(srcDir, 'package.json');
+  const pkg = JSON.parse(await fs.readFile(path.join(__dirname, 'package.json'), 'utf8'));
+  const plugin = JSON.parse(await fs.readFile(path.join(__dirname, 'openclaw.plugin.json'), 'utf8'));
+  console.log(`🚀 Releasing openclaw-browser-automation@${pkg.version} from ${REPO}@main`);
 
-  console.log('ðŸš€ Starting ClawHub Release Workflow...');
-
-  // 1. Read package.json to get version
-  const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
-  const version = pkg.version;
-  console.log(`ðŸ“¦ Releasing openclaw-browser-automation@${version}...`);
-
-  try {
-    // 2. Package for ClawHub
-    console.log('âœˆï¸ Preparing ClawHub package build folder...');
-    try {
-      await fs.rm(buildDir, { recursive: true, force: true });
-    } catch (e) {}
-    await fs.mkdir(buildDir, { recursive: true });
-
-    const filesToCopy = [
-      'package.json',
-      'openclaw.plugin.json',
-      'index.js',
-      'browser-tool.js',
-      'start-chrome-debug.bat',
-      'start-chrome-debug.sh',
-      'README.md',
-      'README.vi.md',
-      'LICENSE'
-    ];
-
-    for (const file of filesToCopy) {
-      const srcFile = path.join(srcDir, file);
-      const destFile = path.join(buildDir, file);
-      try {
-        await fs.copyFile(srcFile, destFile);
-      } catch (err) {
-        console.warn(`  âš  Warning: could not copy ${file}:`, err.message);
-      }
-    }
-
-    // Get current git commit hash
-    let commitHash = 'unknown';
-    try {
-      commitHash = execSync('git rev-parse HEAD', { cwd: srcDir, encoding: 'utf8' }).trim();
-    } catch (e) {}
-
-    // Publish to ClawHub
-    console.log('âœˆï¸ Publishing package to ClawHub...');
-    execSync(
-      `npx clawhub package publish "${buildDir}" --source-repo="https://github.com/tuanminhhole/openclaw-browser-automation" --source-commit="${commitHash}"`,
-      { stdio: 'inherit', cwd: srcDir }
-    );
-    console.log('âœ¨ ClawHub Publish Completed Successfully!');
-
-  } catch (err) {
-    console.error('âŒ Error during release workflow:', err.message);
-  } finally {
-    // Cleanup build directory
-    console.log('ðŸ§¹ Cleaning up temporary build artifacts...');
-    try {
-      await fs.rm(buildDir, { recursive: true, force: true });
-    } catch (e) {}
+  if (plugin.version !== pkg.version) {
+    console.error(`✖ openclaw.plugin.json says ${plugin.version}, package.json says ${pkg.version}. Run: node docs/bump-version.js`);
+    process.exit(1);
   }
 
-  console.log('ðŸŽ‰ Release Workflow Finished Successfully!');
+  const dirty = git('status --porcelain');
+  if (dirty) {
+    console.error('✖ Working tree is not clean. Commit and push first — ClawHub publishes what is on GitHub:\n' + dirty);
+    process.exit(1);
+  }
+
+  const head = git('rev-parse HEAD');
+  let remoteHead = '';
+  try {
+    remoteHead = git('ls-remote origin refs/heads/main').split(/\s+/)[0];
+  } catch (err) {
+    console.error(`✖ Could not read origin/main: ${err.message}`);
+    process.exit(1);
+  }
+  if (head !== remoteHead) {
+    console.error(`✖ HEAD (${head.slice(0, 7)}) is not what origin/main points at (${remoteHead.slice(0, 7)}). Push first.`);
+    process.exit(1);
+  }
+
+  // No --source-commit: passing it is what the stuck 1.3.7 publish did.
+  execSync(`npx clawhub package publish ${REPO}`, { stdio: 'inherit', cwd: __dirname });
+
+  console.log(`\n✨ Published. Verify the tag actually moved (promotion is async):`);
+  console.log(`   npx clawhub package inspect openclaw-browser-automation --version ${pkg.version}`);
+  console.log(`   npx clawhub package inspect openclaw-browser-automation | grep -i latest`);
 }
 
 main();
-
