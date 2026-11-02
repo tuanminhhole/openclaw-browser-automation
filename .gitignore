@@ -3,3 +3,8 @@ node_modules/
 *.log
 /tmp/
 .env
+
+# Bí mật (chuẩn MonkeyTech, BI-MAT.md)
+secrets/
+*.pem
+*.key
